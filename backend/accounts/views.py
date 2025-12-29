@@ -1,15 +1,11 @@
-from rest_framework import viewsets
-from .models import Place, Post, Review
-from .serializers import PlaceSerializer, PostSerializer, ReviewSerializer
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from .models import Place
+from .serializers import PlaceSerializer
 
-class PlaceViewSet(viewsets.ModelViewSet):
-    queryset = Place.objects.all()
-    serializer_class = PlaceSerializer
+@api_view(['GET'])
+def place_list(request):
+    places = Place.objects.all()  # Get all places from the database
+    serializer = PlaceSerializer(places, many=True)
+    return Response(serializer.data)
 
-class PostViewSet(viewsets.ModelViewSet):
-    queryset = Post.objects.all()
-    serializer_class = PostSerializer
-
-class ReviewViewSet(viewsets.ModelViewSet):
-    queryset = Review.objects.all()
-    serializer_class = ReviewSerializer
