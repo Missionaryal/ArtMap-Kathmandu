@@ -61,7 +61,7 @@ class Migration(migrations.Migration):
                     "user_profile",
                     models.OneToOneField(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to="accounts.userprofile",
+                        to="apps.userprofile",
                     ),
                 ),
             ],

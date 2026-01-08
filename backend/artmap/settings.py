@@ -37,7 +37,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "accounts",
+    "apps.apps.AppsConfig",
     "rest_framework",
 ]
 
@@ -51,7 +51,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "artmap_backend.urls"
+ROOT_URLCONF = "artmap.urls"
 
 TEMPLATES = [
     {
@@ -68,7 +68,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "artmap_backend.wsgi.application"
+WSGI_APPLICATION = "artmap.wsgi.application"
 
 
 # Database
@@ -76,10 +76,15 @@ WSGI_APPLICATION = "artmap_backend.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "artmap_db",        # PostgreSQL database
+        "USER": "artmap_user",      # PostgreSQL user
+        "PASSWORD": "artmap123",    # PostgreSQL password
+        "HOST": "localhost",
+        "PORT": "5432",
     }
 }
+
 
 
 # Password validation
