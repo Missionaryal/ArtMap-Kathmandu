@@ -15,21 +15,12 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
 # Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = "django-insecure-x6tjr=ihj%$59y4f^6cn(r=rzr^^(%ljwf!p$qclrddfmtxqyv"
-
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
-
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
 # Application definition
-
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -37,11 +28,13 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "apps.apps.AppsConfig",
-    "rest_framework",
+    "apps.apps.AppsConfig",  # app
+    "rest_framework",        # DRF
+    "corsheaders",           # CORS for frontend
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",  # CORS middleware must be first
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -70,26 +63,19 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "artmap.wsgi.application"
 
-
-# Database
-# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
-
+# Database - PostgreSQL
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "artmap_db",        # PostgreSQL database
-        "USER": "artmap_user",      # PostgreSQL user
-        "PASSWORD": "artmap123",    # PostgreSQL password
+        "NAME": "artmap_db",
+        "USER": "artmap_user",
+        "PASSWORD": "artmap123",
         "HOST": "localhost",
         "PORT": "5432",
     }
 }
 
-
-
 # Password validation
-# https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
-
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
@@ -105,20 +91,33 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
-# https://docs.djangoproject.com/en/6.0/topics/i18n/
-
 LANGUAGE_CODE = "en-us"
-
 TIME_ZONE = "UTC"
-
 USE_I18N = True
-
 USE_TZ = True
 
-
 # Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/6.0/howto/static-files/
-
 STATIC_URL = "static/"
+
+# Media files (uploads like profile pictures, posts)
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+# Django REST Framework + JWT authentication
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticatedOrReadOnly",
+    ),
+}
+
+# CORS settings (allow frontend localhost)
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+]
+
+# Default primary key field type
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

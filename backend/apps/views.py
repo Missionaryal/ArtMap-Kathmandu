@@ -1,49 +1,37 @@
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from rest_framework import status
-from .models import UserProfile, CreatorProfile, Place, Post, Review, Bookmark
+
+from rest_framework import viewsets, generics, permissions
+from django.contrib.auth.models import User
+
+from .models import Place, Post, Review, Bookmark
 from .serializers import (
-    UserProfileSerializer,
-    CreatorProfileSerializer,
     PlaceSerializer,
     PostSerializer,
     ReviewSerializer,
-    BookmarkSerializer
+    BookmarkSerializer,
+    RegisterSerializer
 )
 
-# ---- Places ----
-@api_view(['GET'])
-def place_list(request):
-    places = Place.objects.all()
-    serializer = PlaceSerializer(places, many=True)
-    return Response(serializer.data)
+class PlaceViewSet(viewsets.ModelViewSet):
+    queryset = Place.objects.all()
+    serializer_class = PlaceSerializer
+    permission_classes= [permissions.IsAuthenticated]
 
-@api_view(['GET'])
-def place_detail(request, pk):
-    try:
-        place = Place.objects.get(pk=pk)
-    except Place.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-    serializer = PlaceSerializer(place)
-    return Response(serializer.data)
+class PostViewSet(viewsets.ModelViewSet):
+    queryset = Post.objects.all()
+    serializer_class = PostSerializer
+    permission_classes= [permissions.IsAuthenticated]
 
-# ---- Posts ----
-@api_view(['GET'])
-def post_list(request):
-    posts = Post.objects.all()
-    serializer = PostSerializer(posts, many=True)
-    return Response(serializer.data)
+class ReviewViewSet(viewsets.ModelViewSet):
+    queryset = Review.objects.all()
+    serializer_class = ReviewSerializer
+    permission_classes= [permissions.IsAuthenticated]
 
-# ---- Reviews ----
-@api_view(['GET'])
-def review_list(request):
-    reviews = Review.objects.all()
-    serializer = ReviewSerializer(reviews, many=True)
-    return Response(serializer.data)
+class BookmarkViewSet(viewsets.ModelViewSet):
+    queryset = Bookmark.objects.all()
+    serializer_class = BookmarkSerializer
+    permission_classes= [permissions.IsAuthenticated]
 
-# ---- Bookmarks ----
-@api_view(['GET'])
-def bookmark_list(request):
-    bookmarks = Bookmark.objects.all()
-    serializer = BookmarkSerializer(bookmarks, many=True)
-    return Response(serializer.data)
+class RegisterView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = RegisterSerializer
+    permission_classes= [permissions.AllowAny]
