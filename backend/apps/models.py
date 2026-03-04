@@ -7,69 +7,117 @@ class UserProfile(models.Model):
     profile_picture = models.ImageField(upload_to='profiles/', null=True, blank=True)
     bio = models.TextField(blank=True)
     is_creator = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.user.username
 
 
 class CreatorProfile(models.Model):
+    CATEGORY_CHOICES = [
+        ('gallery', 'Art Gallery'),
+        ('museum', 'Museum'),
+        ('studio', 'Artist Studio'),
+        ('workshop', 'Workshop'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    
     user_profile = models.OneToOneField(UserProfile, on_delete=models.CASCADE)
     business_name = models.CharField(max_length=200)
     business_description = models.TextField()
-    category = models.CharField(max_length=100)
+    category = models.CharField(max_length=100, choices=CATEGORY_CHOICES)
     verified = models.BooleanField(default=False)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.business_name
 
 
 class Place(models.Model):
+    CATEGORY_CHOICES = [
+        ('gallery', 'Art Gallery'),
+        ('museum', 'Museum'),
+        ('studio', 'Artist Studio'),
+        ('workshop', 'Workshop'),
+    ]
+    
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    category = models.CharField(max_length=100)
+    category = models.CharField(max_length=100, choices=CATEGORY_CHOICES)
+    location = models.CharField(max_length=255, blank=True)  # Human-readable address
     creator = models.ForeignKey(
-        CreatorProfile, on_delete=models.SET_NULL, null=True, blank=True
+        CreatorProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='places'
     )
     latitude = models.FloatField()
     longitude = models.FloatField()
+    image = models.ImageField(upload_to='places/', null=True, blank=True)  # Main image
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
 
     def __str__(self):
         return self.name
+    
+    @property
+    def average_rating(self):
+        reviews = self.review_set.all()
+        if reviews:
+            return sum(r.rating for r in reviews) / len(reviews)
+        return 0
+    
+    @property
+    def review_count(self):
+        return self.review_set.count()
 
 
 class Post(models.Model):
-    user = models.ForeignKey(UserProfile, on_delete=models.CASCADE)
-    place = models.ForeignKey(Place, on_delete=models.SET_NULL, null=True, blank=True)
+    user = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='posts')
+    place = models.ForeignKey(Place, on_delete=models.SET_NULL, null=True, blank=True, related_name='posts')
     caption = models.TextField(blank=True)
-    photo = models.ImageField(upload_to='posts/', null=True, blank=True)
+    photo = models.ImageField(upload_to='posts/')  # Required for posts
     is_public = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
 
     def __str__(self):
         return f"{self.user.user.username} - {self.place.name if self.place else 'No Place'}"
 
 
 class Review(models.Model):
-    user = models.ForeignKey(UserProfile, on_delete=models.CASCADE)
-    place = models.ForeignKey(Place, on_delete=models.CASCADE)
-    rating = models.IntegerField(default=0)
+    user = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='reviews')
+    place = models.ForeignKey(Place, on_delete=models.CASCADE, related_name='reviews')
+    rating = models.IntegerField(default=5, choices=[(i, i) for i in range(1, 6)])  # 1-5 stars
     comment = models.TextField(blank=True)
+    photo = models.ImageField(upload_to='reviews/', null=True, blank=True)  # Optional photo with review
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ['user', 'place']  # One review per user per place
 
     def __str__(self):
-        return f"{self.user.user.username} - {self.place.name} ({self.rating})"
+        return f"{self.user.user.username} - {self.place.name} ({self.rating}★)"
 
 
 class Bookmark(models.Model):
-    user = models.ForeignKey(UserProfile, on_delete=models.CASCADE)
-    place = models.ForeignKey(Place, on_delete=models.CASCADE, null=True, blank=True)
-    post = models.ForeignKey(Post, on_delete=models.CASCADE, null=True, blank=True)
+    user = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='bookmarks')
+    place = models.ForeignKey(Place, on_delete=models.CASCADE, related_name='bookmarks')
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ['user', 'place']  # Can't bookmark same place twice
+
     def __str__(self):
-        if self.place:
-            return f"{self.user.user.username} - {self.place.name} (Place)"
-        elif self.post:
-            return f"{self.user.user.username} - Post {self.post.id}"
-        return f"{self.user.user.username} - Bookmark"
+        return f"{self.user.user.username} - {self.place.name}"
