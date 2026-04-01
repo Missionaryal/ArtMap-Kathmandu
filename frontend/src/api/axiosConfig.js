@@ -1,9 +1,8 @@
 import axios from "axios";
 
-// Base URL from environment variable
+// Base URL WITH /api for API calls
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
-// Create axios instance
 const api = axios.create({
   baseURL: BASE_URL,
   headers: {
@@ -11,7 +10,6 @@ const api = axios.create({
   },
 });
 
-// Request interceptor - Add JWT token to requests
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("access_token");
@@ -25,14 +23,16 @@ api.interceptors.request.use(
   },
 );
 
-// Response interceptor - Handle token refresh on 401
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // If error is 401 and we haven't retried yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (
+      error.response?.status === 401 && 
+      !originalRequest._retry &&
+      !originalRequest.url.includes("/token/")
+    ) {
       originalRequest._retry = true;
 
       try {
@@ -42,19 +42,19 @@ api.interceptors.response.use(
           throw new Error("No refresh token");
         }
 
-        // Try to refresh the access token
-        const response = await axios.post(`${BASE_URL}/token/refresh/`, {
-          refresh: refreshToken,
-        });
+        const response = await axios.post(
+          "http://localhost:8000/api/token/refresh/",
+          {
+            refresh: refreshToken,
+          },
+        );
 
         const { access } = response.data;
         localStorage.setItem("access_token", access);
 
-        // Retry the original request with new token
         originalRequest.headers.Authorization = `Bearer ${access}`;
         return api(originalRequest);
       } catch (refreshError) {
-        // Refresh failed - logout user
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
         localStorage.removeItem("user");

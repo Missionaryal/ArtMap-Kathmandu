@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useLocation, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Clock, CheckCircle } from "lucide-react";
 import Button from "../../components/ui/Button";
 import logo from "../../assets/logo.png";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -15,7 +16,12 @@ export default function LoginPage() {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [isSuccess, setIsSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasStartedTyping, setHasStartedTyping] = useState(false);
+
+  // Success message from registration redirect
+  const registrationSuccess = !hasStartedTyping && location.state?.message;
 
   const handleChange = (e) => {
     setFormData({
@@ -23,22 +29,34 @@ export default function LoginPage() {
       [e.target.name]: e.target.value,
     });
     setError("");
+    setHasStartedTyping(true);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
+    setIsSuccess(false);
+    setHasStartedTyping(true); // Clear registration success message
 
     const result = await login(formData.email, formData.password);
 
     if (result.success) {
-      navigate("/");
+      setIsSuccess(true);
+      setError("");
+      
+      // Delay navigation to show success state
+      setTimeout(() => {
+        if (result.user?.is_creator && result.user?.creator_status === "approved") {
+          navigate("/creator");
+        } else {
+          navigate("/");
+        }
+      }, 1500);
     } else {
       setError(result.error);
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   return (
@@ -63,9 +81,53 @@ export default function LoginPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                {error}
+            {isSuccess && (
+              <div className="bg-green-50 border border-green-200 text-green-800 px-5 py-4 rounded-xl text-base flex items-start gap-4 animate-in fade-in zoom-in duration-300 shadow-sm">
+                <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="font-bold font-serif text-lg mb-1 leading-tight text-green-900">
+                    Login Successful
+                  </h4>
+                  <p className="text-sm leading-relaxed">
+                    Welcome back! You are being redirected to your dashboard...
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {registrationSuccess && !isSuccess && (
+              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <span>{registrationSuccess}</span>
+              </div>
+            )}
+
+            {error && !isSuccess && (
+              <div
+                className={`border px-5 py-4 rounded-xl text-base flex items-start gap-4 animate-in fade-in slide-in-from-top-2 duration-300 ${
+                  error.includes("under review")
+                    ? "bg-amber-50 border-amber-200 text-amber-800 ring-2 ring-amber-100 ring-offset-0 animate-pulse-subtle"
+                    : error.includes("not approved")
+                    ? "bg-red-50 border-red-200 text-red-800"
+                    : "bg-red-50 border-red-200 text-red-700 font-medium"
+                }`}
+              >
+                {error.includes("under review") ? (
+                  <Clock className="w-6 h-6 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-400 mt-2 flex-shrink-0" />
+                )}
+                <div className="flex-1">
+                  {(error.includes("under review") ||
+                    error.includes("not approved")) && (
+                    <h4 className="font-bold font-serif text-lg mb-1 leading-tight">
+                      {error.includes("under review")
+                        ? "Application Under Review"
+                        : "Application Status"}
+                    </h4>
+                  )}
+                  <p className="text-sm leading-relaxed">{error}</p>
+                </div>
               </div>
             )}
 
@@ -89,12 +151,12 @@ export default function LoginPage() {
                 <label className="block text-sm font-semibold text-stone-800">
                   Password
                 </label>
-                <a
-                  href="#"
+                <Link
+                  to="/forgot-password"
                   className="text-sm text-gold-400 hover:text-gold-500 font-medium"
                 >
                   Forgot password?
-                </a>
+                </Link>
               </div>
               <div className="relative">
                 <input

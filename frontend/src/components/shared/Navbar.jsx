@@ -52,12 +52,20 @@ export default function Navbar() {
           <div className="flex items-center gap-4">
             {user ? (
               <>
-                <span className="text-base text-stone-700">
-                  Hello,{" "}
-                  <span className="font-semibold text-stone-900">
-                    {user.name}
-                  </span>
-                </span>
+                {user.is_creator && user.creator_status === "approved" && (
+                  <Link
+                    to="/creator"
+                    className="px-5 py-2.5 text-base text-gold-400 hover:text-gold-500 transition-colors font-bold"
+                  >
+                    Dashboard
+                  </Link>
+                )}
+                <Link
+                  to="/profile"
+                  className="px-5 py-2.5 text-base text-stone-700 hover:text-gold-400 transition-colors font-medium"
+                >
+                  Profile
+                </Link>
                 <button
                   onClick={logout}
                   className="px-5 py-2.5 text-base text-stone-700 hover:text-stone-900 transition-colors font-medium"

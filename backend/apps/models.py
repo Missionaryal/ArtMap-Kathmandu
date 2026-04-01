@@ -20,13 +20,13 @@ class CreatorProfile(models.Model):
         ('studio', 'Artist Studio'),
         ('workshop', 'Workshop'),
     ]
-    
+
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('approved', 'Approved'),
         ('rejected', 'Rejected'),
     ]
-    
+
     user_profile = models.OneToOneField(UserProfile, on_delete=models.CASCADE)
     business_name = models.CharField(max_length=200)
     business_description = models.TextField()
@@ -46,17 +46,24 @@ class Place(models.Model):
         ('studio', 'Artist Studio'),
         ('workshop', 'Workshop'),
     ]
-    
+
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     category = models.CharField(max_length=100, choices=CATEGORY_CHOICES)
-    location = models.CharField(max_length=255, blank=True)  # Human-readable address
+    location = models.CharField(max_length=255, blank=True)
     creator = models.ForeignKey(
         CreatorProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='places'
     )
     latitude = models.FloatField()
     longitude = models.FloatField()
-    image = models.ImageField(upload_to='places/', null=True, blank=True)  # Main image
+    image = models.ImageField(upload_to='places/', null=True, blank=True)
+
+    # Contact & Info fields
+    phone = models.CharField(max_length=20, blank=True)
+    website = models.CharField(max_length=255, blank=True)
+    email = models.EmailField(blank=True)
+    operating_hours = models.CharField(max_length=255, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -65,24 +72,38 @@ class Place(models.Model):
 
     def __str__(self):
         return self.name
-    
+
     @property
     def average_rating(self):
-        reviews = self.review_set.all()
+        reviews = self.reviews.all()
         if reviews:
-            return sum(r.rating for r in reviews) / len(reviews)
+            return round(sum(r.rating for r in reviews) / len(reviews), 1)
         return 0
-    
+
     @property
     def review_count(self):
-        return self.review_set.count()
+        return self.reviews.count()
+
+
+class PlacePhoto(models.Model):
+    place = models.ForeignKey(Place, on_delete=models.CASCADE, related_name='photos')
+    photo = models.ImageField(upload_to='place_photos/')
+    caption = models.CharField(max_length=255, blank=True)
+    uploaded_by = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']  # oldest first → first uploaded = cover photo
+
+    def __str__(self):
+        return f"{self.place.name} - Photo {self.id}"
 
 
 class Post(models.Model):
     user = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='posts')
     place = models.ForeignKey(Place, on_delete=models.SET_NULL, null=True, blank=True, related_name='posts')
     caption = models.TextField(blank=True)
-    photo = models.ImageField(upload_to='posts/')  # Required for posts
+    photo = models.ImageField(upload_to='posts/')
     is_public = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -96,15 +117,15 @@ class Post(models.Model):
 class Review(models.Model):
     user = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='reviews')
     place = models.ForeignKey(Place, on_delete=models.CASCADE, related_name='reviews')
-    rating = models.IntegerField(default=5, choices=[(i, i) for i in range(1, 6)])  # 1-5 stars
+    rating = models.IntegerField(default=5, choices=[(i, i) for i in range(1, 6)])
     comment = models.TextField(blank=True)
-    photo = models.ImageField(upload_to='reviews/', null=True, blank=True)  # Optional photo with review
+    photo = models.ImageField(upload_to='reviews/', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['-created_at']
-        unique_together = ['user', 'place']  # One review per user per place
+        unique_together = ['user', 'place']
 
     def __str__(self):
         return f"{self.user.user.username} - {self.place.name} ({self.rating}★)"
@@ -117,7 +138,7 @@ class Bookmark(models.Model):
 
     class Meta:
         ordering = ['-created_at']
-        unique_together = ['user', 'place']  # Can't bookmark same place twice
+        unique_together = ['user', 'place']
 
     def __str__(self):
         return f"{self.user.user.username} - {self.place.name}"

@@ -10,14 +10,24 @@ export default function RegisterPage() {
   const { register } = useAuth();
 
   const [formData, setFormData] = useState({
-    name: "",
+    username: "",
     email: "",
     password: "",
     role: "explorer",
+    business_name: "",
+    business_description: "",
+    category: "gallery",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  const categories = [
+    { value: "gallery", label: "Art Gallery" },
+    { value: "museum", label: "Museum" },
+    { value: "studio", label: "Artist Studio" },
+    { value: "workshop", label: "Workshop" },
+  ];
 
   const handleChange = (e) => {
     setFormData({
@@ -42,14 +52,29 @@ export default function RegisterPage() {
       return;
     }
 
+    // Basic validation for creators
+    if (formData.role === "creator" && !formData.business_name) {
+      setError("Business name is required for creators");
+      setIsLoading(false);
+      return;
+    }
+
     const result = await register(
-      formData.name,
+      formData.username,
       formData.email,
       formData.password,
+      formData.role,
+      formData.role === "creator" ? {
+        business_name: formData.business_name,
+        business_description: formData.business_description,
+        category: formData.category
+      } : {}
     );
 
     if (result.success) {
-      navigate("/");
+      navigate("/login", { 
+        state: { message: result.message } 
+      });
     } else {
       setError(result.error);
     }
@@ -59,7 +84,6 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left Side - Creative Content */}
       <div className="hidden lg:flex lg:w-1/2 bg-cream-200 items-center justify-center p-12">
         <div className="max-w-md text-center">
           <div className="w-24 h-24 mx-auto mb-8">
@@ -79,15 +103,12 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      {/* Right Side - Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white">
         <div className="w-full max-w-md">
-          {/* Logo - Mobile Only */}
           <div className="lg:hidden flex justify-center mb-8">
             <img src={logo} alt="ArtMap Logo" className="h-16 w-auto" />
           </div>
 
-          {/* Header */}
           <div className="mb-10">
             <h1 className="text-4xl font-serif font-bold text-stone-900 mb-3">
               Create your account
@@ -97,7 +118,6 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          {/* Role Selection */}
           <div className="grid grid-cols-2 gap-4 mb-8">
             <button
               type="button"
@@ -136,24 +156,29 @@ export default function RegisterPage() {
             </button>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                {error}
+              <div className="bg-red-50 border border-red-200 text-red-800 px-5 py-4 rounded-xl text-base flex items-start gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="w-2.5 h-2.5 rounded-full bg-red-400 mt-2 flex-shrink-0" />
+                <div className="flex-1">
+                  <h4 className="font-bold font-serif text-lg mb-1 leading-tight text-red-900">
+                    Registration Issue
+                  </h4>
+                  <p className="text-sm leading-relaxed">{error}</p>
+                </div>
               </div>
             )}
 
             <div>
               <label className="block text-sm font-semibold text-stone-800 mb-2">
-                Full Name
+                Username
               </label>
               <input
                 type="text"
-                name="name"
-                value={formData.name}
+                name="username"
+                value={formData.username}
                 onChange={handleChange}
-                placeholder="Enter your name"
+                placeholder="Choose a username"
                 required
                 className="w-full px-4 py-3 text-base border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent"
               />
@@ -201,6 +226,61 @@ export default function RegisterPage() {
                 </button>
               </div>
             </div>
+
+            {formData.role === "creator" && (
+              <div className="space-y-5 pt-4 border-t border-stone-100 animate-in fade-in slide-in-from-top-4 duration-300">
+                <h3 className="text-lg font-serif font-bold text-stone-900">
+                  Business Details
+                </h3>
+
+                <div>
+                  <label className="block text-sm font-semibold text-stone-800 mb-2">
+                    Business / Art Space Name
+                  </label>
+                  <input
+                    type="text"
+                    name="business_name"
+                    value={formData.business_name}
+                    onChange={handleChange}
+                    placeholder="e.g. Kathmandu Art Space"
+                    required
+                    className="w-full px-4 py-3 text-base border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-stone-800 mb-2">
+                    Primary Category
+                  </label>
+                  <select
+                    name="category"
+                    value={formData.category}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 text-base border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400 bg-white"
+                  >
+                    {categories.map((cat) => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-stone-800 mb-2">
+                    Short Description
+                  </label>
+                  <textarea
+                    name="business_description"
+                    value={formData.business_description}
+                    onChange={handleChange}
+                    placeholder="Describe your art space or studio..."
+                    rows="3"
+                    className="w-full px-4 py-3 text-base border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400 resize-none"
+                  ></textarea>
+                </div>
+              </div>
+            )}
 
             <Button
               type="submit"

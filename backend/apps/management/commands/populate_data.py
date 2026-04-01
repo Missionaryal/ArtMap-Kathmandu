@@ -9,42 +9,44 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         self.stdout.write('Starting data population...')
         
-        # Create default admin/creator user if doesn't exist
-        if not User.objects.filter(username='defaultcreator').exists():
+        # Create system system user for demo data (is_active=False to prevent login)
+        if not User.objects.filter(username='artmap_system').exists():
             user = User.objects.create_user(
-                username='defaultcreator',
-                email='creator@artmap.com',
-                password='creator123'
+                username='artmap_system',
+                email='system@artmap.com',
+                password='system_secure_password_123!',
+                is_active=False,
+                is_staff=True
             )
-            self.stdout.write(self.style.SUCCESS(f' Created user: {user.username}'))
+            self.stdout.write(self.style.SUCCESS(f' Created system user: {user.username}'))
         else:
-            user = User.objects.get(username='defaultcreator')
-            self.stdout.write(f'User already exists: {user.username}')
+            user = User.objects.get(username='artmap_system')
+            self.stdout.write(f'Using existing system user: {user.username}')
         
         # Create UserProfile
         user_profile, created = UserProfile.objects.get_or_create(
             user=user,
             defaults={
-                'bio': 'Default system creator for pre-existing places',
+                'bio': 'Official ArtMap System Profile for verified public art spaces.',
                 'is_creator': True
             }
         )
         if created:
-            self.stdout.write(self.style.SUCCESS(f' Created UserProfile'))
+            self.stdout.write(self.style.SUCCESS(f' Created System UserProfile'))
         
         # Create CreatorProfile
         creator_profile, created = CreatorProfile.objects.get_or_create(
             user_profile=user_profile,
             defaults={
-                'business_name': 'ArtMap Default Listings',
-                'business_description': 'Default creator profile for system-managed art spaces',
+                'business_name': 'ArtMap Verified',
+                'business_description': 'Standard ArtMap verification for community-managed listings.',
                 'category': 'gallery',
                 'verified': True,
                 'status': 'approved'
             }
         )
         if created:
-            self.stdout.write(self.style.SUCCESS(f'✓ Created CreatorProfile: {creator_profile.business_name}'))
+            self.stdout.write(self.style.SUCCESS(f' Created System CreatorProfile: {creator_profile.business_name}'))
         
         # Create Places
         places_data = [

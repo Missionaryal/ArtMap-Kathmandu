@@ -11,6 +11,9 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+from django.templatetags.static import static
+from django.urls import reverse_lazy
+from django.utils.translation import gettext_lazy as _
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -22,19 +25,27 @@ ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
 # Application definition
 INSTALLED_APPS = [
+    "unfold",
+    "unfold.contrib.filters",
+    "unfold.contrib.forms",
+    "unfold.contrib.import_export",
+    "unfold.contrib.guardian",
+    "unfold.contrib.simple_history",
+    
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "apps.apps.AppsConfig",  # app
-    "rest_framework",        # DRF
-    "corsheaders",           # CORS for frontend
+    
+    "apps.apps.AppsConfig",
+    "rest_framework",
+    "corsheaders",
 ]
 
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",  # CORS middleware must be first
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -48,14 +59,15 @@ ROOT_URLCONF = "artmap.urls"
 
 TEMPLATES = [
     {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
-        "APP_DIRS": True,
-        "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [BASE_DIR / 'apps' / 'templates'],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
             ],
         },
     },
@@ -98,7 +110,11 @@ USE_I18N = True
 USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
-STATIC_URL = "static/"
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [
+    BASE_DIR / 'apps' / 'static',
+]
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Media files (uploads like profile pictures, posts)
 MEDIA_URL = "/media/"
@@ -120,6 +136,44 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
 ]
 
-CORS_ALLOW_CREDENTIALS = True  
+CORS_ALLOW_CREDENTIALS = True
+
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Django Unfold Configuration
+UNFOLD = {
+    "SITE_TITLE": "ArtMap Kathmandu",
+    "SITE_HEADER": "ArtMap Admin",
+    "SITE_URL": "/",
+    "SITE_ICON": {
+        "light": lambda request: static("logo.png"),
+        "dark": lambda request: static("logo.png"),
+    },
+    "SITE_LOGO": {
+        "light": lambda request: static("logo.png"),
+        "dark": lambda request: static("logo.png"),
+    },
+    "SITE_SYMBOL": "speed",
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": True,
+    "COLORS": {
+        "primary": {
+            "50": "#FEF8EC",
+            "100": "#FDEFC8",
+            "200": "#FBE08C",
+            "300": "#F9CE50",
+            "400": "#F7BD28",
+            "500": "#C9A961",
+            "600": "#B08D4F",
+            "700": "#8B6D3D",
+            "800": "#6B532F",
+            "900": "#523F24",
+            "950": "#2F2315",
+        },
+    },
+}
+
+# Additional settings for Unfold
+X_FRAME_OPTIONS = 'SAMEORIGIN'
+SILENCED_SYSTEM_CHECKS = ['security.W019']
