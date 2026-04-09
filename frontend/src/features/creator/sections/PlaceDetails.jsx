@@ -1,3 +1,8 @@
+// PlaceDetails.jsx
+// The Place Details section of the creator dashboard.
+// Lets creators create or edit the information shown on their public place page.
+// If the creator has no place yet, shows a "Create My Place" prompt.
+
 import { Edit, Eye, Clock, Phone, Globe, Mail, MapPin } from "lucide-react";
 import { useState, useEffect } from "react";
 import {
@@ -11,8 +16,15 @@ const CATEGORY_OPTIONS = [
   { value: "museum", label: "Museum" },
   { value: "studio", label: "Artist Studio" },
   { value: "workshop", label: "Workshop" },
+  { value: "cafe", label: "Art Cafe" },
+  { value: "thangka", label: "Thangka Art" },
+  { value: "pottery", label: "Pottery" },
+  { value: "weaving", label: "Weaving" },
+  { value: "sculpture", label: "Sculpture" },
+  { value: "photography", label: "Photography" },
 ];
 
+// Default form values — coordinates default to central Kathmandu
 const EMPTY_FORM = {
   name: "",
   category: "gallery",
@@ -26,7 +38,6 @@ const EMPTY_FORM = {
   operating_hours: "",
 };
 
-// ← onPlaceCreated prop added
 export default function PlaceDetails({ onPlaceCreated }) {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -46,6 +57,7 @@ export default function PlaceDetails({ onPlaceCreated }) {
       if (places.length > 0) {
         const p = places[0];
         setPlace(p);
+        // Populate the form with existing place data
         setFormData({
           name: p.name || "",
           category: p.category || "gallery",
@@ -92,11 +104,11 @@ export default function PlaceDetails({ onPlaceCreated }) {
         setSuccess("Place updated successfully!");
         setPlace(updated);
       } else {
-        // Create new place — notify dashboard with the new place ID
+        // Create brand new place — notify the parent dashboard so it can update placeId
         const created = await createPlace(formData);
         setSuccess("Place created successfully!");
         setPlace(created);
-        if (onPlaceCreated) onPlaceCreated(created.id); // ← key line
+        if (onPlaceCreated) onPlaceCreated(created.id);
       }
       setIsEditing(false);
       fetchPlace();
@@ -112,6 +124,7 @@ export default function PlaceDetails({ onPlaceCreated }) {
     setIsEditing(false);
     setError("");
     setSuccess("");
+    // Reset the form back to the saved place data
     if (place) {
       setFormData({
         name: place.name || "",
@@ -136,6 +149,7 @@ export default function PlaceDetails({ onPlaceCreated }) {
     );
   }
 
+  // Prompt shown if the creator hasn't created their place yet
   if (!place && !isEditing) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -161,9 +175,24 @@ export default function PlaceDetails({ onPlaceCreated }) {
 
   return (
     <div>
-      {/* Header */}
+      {/* Header with place name badge and edit/save buttons */}
       <div className="flex items-center justify-between mb-8">
         <div>
+          {place && (
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-full bg-gold-100 flex items-center justify-center">
+                <span className="text-gold-600 font-bold text-sm">
+                  {place.name?.[0]?.toUpperCase()}
+                </span>
+              </div>
+              <span className="text-sm font-semibold text-stone-700">
+                {place.name}
+              </span>
+              <span className="text-xs px-2 py-0.5 bg-stone-100 text-stone-500 rounded-full capitalize">
+                {place.category?.replace("_", " ")}
+              </span>
+            </div>
+          )}
           <h1 className="text-2xl font-serif font-bold text-stone-900 mb-1">
             Place Details
           </h1>
@@ -200,7 +229,7 @@ export default function PlaceDetails({ onPlaceCreated }) {
         </div>
       </div>
 
-      {/* Feedback Messages */}
+      {/* Error and success feedback */}
       {error && (
         <div className="mb-6 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
           {error}
@@ -212,9 +241,8 @@ export default function PlaceDetails({ onPlaceCreated }) {
         </div>
       )}
 
-      {/* Form Card */}
+      {/* Main form — inputs are read-only when not editing */}
       <div className="bg-white border border-stone-200 rounded-xl p-6 shadow-sm mb-6">
-        {/* Basic Information */}
         <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-4">
           Basic Information
         </h3>
@@ -233,7 +261,6 @@ export default function PlaceDetails({ onPlaceCreated }) {
               className="w-full px-4 py-2.5 border border-stone-300 rounded-lg text-sm disabled:bg-stone-50 disabled:text-stone-600 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent"
             />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">
               Category
@@ -252,7 +279,6 @@ export default function PlaceDetails({ onPlaceCreated }) {
               ))}
             </select>
           </div>
-
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-stone-700 mb-1.5">
               Location <span className="text-red-400">*</span>
@@ -267,7 +293,7 @@ export default function PlaceDetails({ onPlaceCreated }) {
               className="w-full px-4 py-2.5 border border-stone-300 rounded-lg text-sm disabled:bg-stone-50 disabled:text-stone-600 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent"
             />
           </div>
-
+          {/* Coordinates for the map marker */}
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">
               Latitude
@@ -282,7 +308,6 @@ export default function PlaceDetails({ onPlaceCreated }) {
               className="w-full px-4 py-2.5 border border-stone-300 rounded-lg text-sm disabled:bg-stone-50 disabled:text-stone-600 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent"
             />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">
               Longitude
@@ -297,7 +322,6 @@ export default function PlaceDetails({ onPlaceCreated }) {
               className="w-full px-4 py-2.5 border border-stone-300 rounded-lg text-sm disabled:bg-stone-50 disabled:text-stone-600 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent"
             />
           </div>
-
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-stone-700 mb-1.5">
               Description
@@ -314,10 +338,8 @@ export default function PlaceDetails({ onPlaceCreated }) {
           </div>
         </div>
 
-        {/* Divider */}
         <div className="border-t border-stone-100 my-6" />
 
-        {/* Contact & Hours */}
         <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-4">
           Contact & Hours
         </h3>
@@ -333,11 +355,10 @@ export default function PlaceDetails({ onPlaceCreated }) {
               value={formData.operating_hours}
               onChange={handleChange}
               disabled={!isEditing}
-              placeholder="e.g., 10:00 AM - 6:00 PM, Tue-Sun"
+              placeholder="e.g., Tue-Sun 11am - 6pm"
               className="w-full px-4 py-2.5 border border-stone-300 rounded-lg text-sm disabled:bg-stone-50 disabled:text-stone-600 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent"
             />
           </div>
-
           <div>
             <label className="flex items-center gap-1.5 text-sm font-medium text-stone-700 mb-1.5">
               <Phone className="w-3.5 h-3.5 text-gold-600" />
@@ -349,11 +370,10 @@ export default function PlaceDetails({ onPlaceCreated }) {
               value={formData.phone}
               onChange={handleChange}
               disabled={!isEditing}
-              placeholder="e.g., +977 1 4218048"
+              placeholder="e.g., +977 1-5544880"
               className="w-full px-4 py-2.5 border border-stone-300 rounded-lg text-sm disabled:bg-stone-50 disabled:text-stone-600 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent"
             />
           </div>
-
           <div>
             <label className="flex items-center gap-1.5 text-sm font-medium text-stone-700 mb-1.5">
               <Globe className="w-3.5 h-3.5 text-gold-600" />
@@ -365,11 +385,10 @@ export default function PlaceDetails({ onPlaceCreated }) {
               value={formData.website}
               onChange={handleChange}
               disabled={!isEditing}
-              placeholder="e.g., www.yourgallery.com"
+              placeholder="e.g., www.siddharthaartgallery.com"
               className="w-full px-4 py-2.5 border border-stone-300 rounded-lg text-sm disabled:bg-stone-50 disabled:text-stone-600 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent"
             />
           </div>
-
           <div>
             <label className="flex items-center gap-1.5 text-sm font-medium text-stone-700 mb-1.5">
               <Mail className="w-3.5 h-3.5 text-gold-600" />
@@ -381,14 +400,14 @@ export default function PlaceDetails({ onPlaceCreated }) {
               value={formData.email}
               onChange={handleChange}
               disabled={!isEditing}
-              placeholder="e.g., info@yourgallery.com"
+              placeholder="e.g., info@siddharthaartgallery.com"
               className="w-full px-4 py-2.5 border border-stone-300 rounded-lg text-sm disabled:bg-stone-50 disabled:text-stone-600 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent"
             />
           </div>
         </div>
       </div>
 
-      {/* View Public Page */}
+      {/* Quick link to preview the public page */}
       {place && (
         <div className="bg-white border border-stone-200 rounded-xl p-5 shadow-sm flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -404,12 +423,15 @@ export default function PlaceDetails({ onPlaceCreated }) {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => window.open(`/places/${place.id}`, "_blank")}
+          {/* Opens in a new tab with ?preview=true so the navbar shows "Back to Dashboard" */}
+          <a
+            href={`/places/${place.id}?preview=true`}
+            target="_blank"
+            rel="noopener noreferrer"
             className="px-4 py-2 border border-stone-300 rounded-lg text-stone-700 hover:bg-stone-50 transition-colors text-sm font-medium"
           >
             View Page
-          </button>
+          </a>
         </div>
       )}
     </div>

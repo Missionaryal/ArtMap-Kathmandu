@@ -1,3 +1,8 @@
+// TaggedPosts.jsx
+// Shows all public posts that users have tagged at the creator's place.
+// The Approve/Remove buttons are UI placeholders — the backend currently auto-approves
+// all public posts and doesn't have a moderation API yet.
+
 import { Heart } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getCreatorTaggedPosts } from "../../../api/creatorApi";
@@ -22,19 +27,17 @@ export default function TaggedPosts() {
     }
   };
 
+  // Filter posts by tab — pending/approved use the 'approved' field on each post
   const filteredPosts = posts.filter((post) => {
     if (activeTab === "pending") return !post.approved;
     if (activeTab === "approved") return post.approved;
     return true;
   });
 
-  if (loading) {
-    return <div className="text-center py-8">Loading posts...</div>;
-  }
+  if (loading) return <div className="text-center py-8">Loading posts...</div>;
 
   return (
     <div>
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-serif font-bold text-stone-900 mb-2">
           Tagged Posts
@@ -44,7 +47,7 @@ export default function TaggedPosts() {
         </p>
       </div>
 
-      {/* Tabs */}
+      {/* Tab filter */}
       <div className="flex gap-2 mb-6 border-b border-stone-200">
         {[
           { id: "all", label: "All Posts" },
@@ -61,6 +64,7 @@ export default function TaggedPosts() {
             }`}
           >
             {tab.label}
+            {/* Gold underline for active tab */}
             {activeTab === tab.id && (
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-400" />
             )}
@@ -68,7 +72,6 @@ export default function TaggedPosts() {
         ))}
       </div>
 
-      {/* Posts Grid */}
       {filteredPosts.length > 0 ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredPosts.map((post) => (
@@ -76,28 +79,22 @@ export default function TaggedPosts() {
               key={post.id}
               className="bg-white border border-stone-200 rounded-xl overflow-hidden"
             >
-              {/* Image */}
               <div className="relative aspect-square">
                 <img
                   src={post.photo}
                   alt=""
                   className="w-full h-full object-cover"
                 />
-                {/* Status Badge */}
+                {/* Status badge — gold for approved, orange for pending */}
                 <div className="absolute top-2 right-2">
                   <span
-                    className={`px-2 py-1 text-xs font-medium rounded ${
-                      post.approved
-                        ? "bg-gold-400 text-white"
-                        : "bg-orange-400 text-white"
-                    }`}
+                    className={`px-2 py-1 text-xs font-medium rounded ${post.approved ? "bg-gold-400 text-white" : "bg-orange-400 text-white"}`}
                   >
                     {post.approved ? "Approved" : "Pending"}
                   </span>
                 </div>
               </div>
 
-              {/* Info */}
               <div className="p-3">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm font-medium text-stone-900">
@@ -112,7 +109,7 @@ export default function TaggedPosts() {
                   {new Date(post.created_at).toLocaleDateString()}
                 </p>
 
-                {/* Actions */}
+                {/* Action buttons — UI only, moderation API not yet implemented */}
                 {activeTab !== "approved" && (
                   <div className="flex gap-2">
                     {!post.approved && (

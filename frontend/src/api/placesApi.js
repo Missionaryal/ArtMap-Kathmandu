@@ -1,6 +1,10 @@
+// placesApi.js
+// Functions for fetching cultural places from the API.
+
 import api from "./axiosConfig";
 
-// Get all places with optional filters
+// GET /api/places/ — get all places, with optional category or search filters
+// Example: getPlaces({ category: 'thangka' }) returns only thangka places
 export const getPlaces = async (filters = {}) => {
   const params = new URLSearchParams();
   if (filters.category) params.append("category", filters.category);
@@ -10,11 +14,11 @@ export const getPlaces = async (filters = {}) => {
   return response.data;
 };
 
-// Get single place by ID
+// GET /api/places/<id>/ — get full details for a single place by its ID
 export const getPlaceById = async (id) => {
   const response = await api.get(`/places/${id}/`);
   return response.data;
 };
 
-// Legacy export
+// Alias kept for backwards compatibility with older parts of the codebase
 export const getAllPlaces = getPlaces;

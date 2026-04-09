@@ -1,57 +1,77 @@
 import { useState } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import { Eye, EyeOff, Clock, CheckCircle } from "lucide-react";
+import { Eye, EyeOff, Clock, CheckCircle, AlertCircle } from "lucide-react";
 import Button from "../../components/ui/Button";
-import logo from "../../assets/logo.png";
+import logo from "../../assets/artmap final logo.jpeg";
+import { BACKEND_URL } from "../../api/axiosConfig";
+
+const ADMIN_URL = import.meta.env.VITE_ADMIN_URL || "artmap-admin-2026";
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
 
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
+  const [formData, setFormData] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [hasStartedTyping, setHasStartedTyping] = useState(false);
+  const [touched, setTouched] = useState({});
 
-  // Success message from registration redirect
   const registrationSuccess = !hasStartedTyping && location.state?.message;
 
+  const validate = () => {
+    const errs = {};
+    if (!formData.email) errs.email = "Email is required";
+    else if (!/\S+@\S+\.\S+/.test(formData.email))
+      errs.email = "Enter a valid email";
+    if (!formData.password) errs.password = "Password is required";
+    return errs;
+  };
+  const fieldErrors = validate();
+
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
     setError("");
     setHasStartedTyping(true);
   };
 
+  const handleBlur = (e) => {
+    setTouched({ ...touched, [e.target.name]: true });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setTouched({ email: true, password: true });
+    if (Object.keys(fieldErrors).length > 0) return;
+
     setIsLoading(true);
     setError("");
     setIsSuccess(false);
-    setHasStartedTyping(true); // Clear registration success message
 
     const result = await login(formData.email, formData.password);
 
     if (result.success) {
       setIsSuccess(true);
-      setError("");
-      
-      // Delay navigation to show success state
       setTimeout(() => {
-        if (result.user?.is_creator && result.user?.creator_status === "approved") {
-          navigate("/creator");
-        } else {
-          navigate("/");
+        // Admin/superuser — redirect to secret admin URL from env
+        if (result.user?.is_staff || result.user?.is_superuser) {
+          window.location.href = `${BACKEND_URL}/${ADMIN_URL}/`;
+          return;
         }
+        // Approved creator — creator dashboard
+        if (
+          result.user?.is_creator &&
+          result.user?.creator_status === "approved"
+        ) {
+          navigate("/creator");
+          return;
+        }
+        // Regular user — home
+        navigate("/");
       }, 1500);
     } else {
       setError(result.error);
@@ -79,22 +99,21 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+            {/* Success */}
             {isSuccess && (
-              <div className="bg-green-50 border border-green-200 text-green-800 px-5 py-4 rounded-xl text-base flex items-start gap-4 animate-in fade-in zoom-in duration-300 shadow-sm">
+              <div className="bg-green-50 border border-green-200 text-green-800 px-5 py-4 rounded-xl text-base flex items-start gap-4">
                 <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <h4 className="font-bold font-serif text-lg mb-1 leading-tight text-green-900">
+                <div>
+                  <h4 className="font-bold font-serif text-lg mb-1">
                     Login Successful
                   </h4>
-                  <p className="text-sm leading-relaxed">
-                    Welcome back! You are being redirected to your dashboard...
-                  </p>
+                  <p className="text-sm">Welcome back! Redirecting...</p>
                 </div>
               </div>
             )}
 
+            {/* Registration success message */}
             {registrationSuccess && !isSuccess && (
               <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm flex items-start gap-3">
                 <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
@@ -102,14 +121,13 @@ export default function LoginPage() {
               </div>
             )}
 
+            {/* Error */}
             {error && !isSuccess && (
               <div
-                className={`border px-5 py-4 rounded-xl text-base flex items-start gap-4 animate-in fade-in slide-in-from-top-2 duration-300 ${
+                className={`border px-5 py-4 rounded-xl text-base flex items-start gap-4 ${
                   error.includes("under review")
-                    ? "bg-amber-50 border-amber-200 text-amber-800 ring-2 ring-amber-100 ring-offset-0 animate-pulse-subtle"
-                    : error.includes("not approved")
-                    ? "bg-red-50 border-red-200 text-red-800"
-                    : "bg-red-50 border-red-200 text-red-700 font-medium"
+                    ? "bg-amber-50 border-amber-200 text-amber-800"
+                    : "bg-red-50 border-red-200 text-red-700"
                 }`}
               >
                 {error.includes("under review") ? (
@@ -118,12 +136,9 @@ export default function LoginPage() {
                   <div className="w-2.5 h-2.5 rounded-full bg-red-400 mt-2 flex-shrink-0" />
                 )}
                 <div className="flex-1">
-                  {(error.includes("under review") ||
-                    error.includes("not approved")) && (
-                    <h4 className="font-bold font-serif text-lg mb-1 leading-tight">
-                      {error.includes("under review")
-                        ? "Application Under Review"
-                        : "Application Status"}
+                  {error.includes("under review") && (
+                    <h4 className="font-bold font-serif text-lg mb-1">
+                      Application Under Review
                     </h4>
                   )}
                   <p className="text-sm leading-relaxed">{error}</p>
@@ -131,6 +146,7 @@ export default function LoginPage() {
               </div>
             )}
 
+            {/* Email */}
             <div>
               <label className="block text-sm font-semibold text-stone-800 mb-2">
                 Email
@@ -140,12 +156,24 @@ export default function LoginPage() {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 placeholder="you@example.com"
                 required
-                className="w-full px-4 py-3 text-base border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent"
+                className={`w-full px-4 py-3 text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent ${
+                  touched.email && fieldErrors.email
+                    ? "border-red-300 bg-red-50"
+                    : "border-stone-300"
+                }`}
               />
+              {touched.email && fieldErrors.email && (
+                <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  {fieldErrors.email}
+                </p>
+              )}
             </div>
 
+            {/* Password */}
             <div>
               <div className="flex justify-between items-center mb-2">
                 <label className="block text-sm font-semibold text-stone-800">
@@ -164,9 +192,14 @@ export default function LoginPage() {
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
+                  onBlur={handleBlur}
                   placeholder="Enter your password"
                   required
-                  className="w-full px-4 py-3 text-base border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent pr-12"
+                  className={`w-full px-4 py-3 text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent pr-12 ${
+                    touched.password && fieldErrors.password
+                      ? "border-red-300 bg-red-50"
+                      : "border-stone-300"
+                  }`}
                 />
                 <button
                   type="button"
@@ -180,16 +213,26 @@ export default function LoginPage() {
                   )}
                 </button>
               </div>
+              {touched.password && fieldErrors.password && (
+                <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  {fieldErrors.password}
+                </p>
+              )}
             </div>
 
             <Button
               type="submit"
               variant="primary"
               size="lg"
-              disabled={isLoading}
+              disabled={isLoading || isSuccess}
               className="w-full !text-base"
             >
-              {isLoading ? "Signing in..." : "Sign In"}
+              {isLoading
+                ? "Signing in..."
+                : isSuccess
+                  ? "Redirecting..."
+                  : "Sign In"}
             </Button>
 
             <div className="pt-6 border-t border-stone-200">
@@ -207,8 +250,8 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right Side - Creative Content */}
-      <div className="hidden lg:flex lg:w-1/2 bg-cream-200 items-center justify-center p-12">
+      {/* Right Side */}
+      <div className="hidden lg:flex lg:w-1/2 bg-[#F5F0E8] items-center justify-center p-12">
         <div className="max-w-md text-center">
           <div className="w-24 h-24 mx-auto mb-8">
             <img
