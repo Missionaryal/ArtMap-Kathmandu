@@ -1,0 +1,66 @@
+﻿{% extends 'unfold/layouts/base_simple.html' %}
+{% load i18n %}
+{% block content %}
+<div style="padding:2rem;">
+
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1.5rem;margin-bottom:2rem;">
+    <div style="background:white;border-radius:12px;border:1px solid #e7e5e4;padding:1.5rem;">
+      <p style="font-size:13px;color:#78716c;margin:0 0 8px;">Total Users</p>
+      <p style="font-size:2rem;font-weight:700;color:#1c1917;margin:0;">{{ total_users }}</p>
+    </div>
+    <div style="background:white;border-radius:12px;border:1px solid #e7e5e4;padding:1.5rem;">
+      <p style="font-size:13px;color:#78716c;margin:0 0 8px;">Active Places</p>
+      <p style="font-size:2rem;font-weight:700;color:#1c1917;margin:0;">{{ total_places }}</p>
+    </div>
+    <div style="background:white;border-radius:12px;border:1px solid #e7e5e4;padding:1.5rem;">
+      <p style="font-size:13px;color:#78716c;margin:0 0 8px;">Pending Creators</p>
+      <p style="font-size:2rem;font-weight:700;color:#d97706;margin:0;">{{ pending_count }}</p>
+    </div>
+    <div style="background:white;border-radius:12px;border:1px solid #e7e5e4;padding:1.5rem;">
+      <p style="font-size:13px;color:#78716c;margin:0 0 8px;">Total Bookings</p>
+      <p style="font-size:2rem;font-weight:700;color:#1c1917;margin:0;">{{ total_bookings }}</p>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+    <div style="background:white;border-radius:12px;border:1px solid #e7e5e4;">
+      <div style="padding:1rem 1.5rem;border-bottom:1px solid #f5f5f4;display:flex;align-items:center;justify-content:space-between;">
+        <h2 style="font-size:15px;font-weight:600;color:#1c1917;margin:0;">Verification Requests</h2>
+        <span style="background:#fef3c7;color:#d97706;font-size:12px;font-weight:600;padding:2px 10px;border-radius:20px;">{{ pending_count }} pending</span>
+      </div>
+      {% for creator in pending_creators %}
+      <div style="padding:1rem 1.5rem;border-bottom:1px solid #fafaf9;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <p style="font-size:14px;font-weight:600;color:#1c1917;margin:0 0 2px;">{{ creator.business_name }}</p>
+          <p style="font-size:12px;color:#78716c;margin:0;">{{ creator.user_profile.user.username }}</p>
+        </div>
+        <a href="{% url 'admin:apps_creatorprofile_change' creator.pk %}" style="padding:5px 12px;font-size:12px;border:1px solid #d6d3d1;color:#44403c;border-radius:6px;text-decoration:none;">Review</a>
+      </div>
+      {% empty %}
+      <p style="padding:2rem;text-align:center;color:#a8a29e;font-size:13px;margin:0;">No pending requests</p>
+      {% endfor %}
+      <div style="padding:0.75rem 1.5rem;">
+        <a href="{% url 'admin:apps_creatorprofile_changelist' %}?status__exact=pending" style="font-size:13px;color:#c9a961;text-decoration:none;font-weight:500;">View all requests</a>
+      </div>
+    </div>
+
+    <div style="background:white;border-radius:12px;border:1px solid #e7e5e4;">
+      <div style="padding:1rem 1.5rem;border-bottom:1px solid #f5f5f4;display:flex;align-items:center;justify-content:space-between;">
+        <h2 style="font-size:15px;font-weight:600;color:#1c1917;margin:0;">Recent Places</h2>
+        <a href="{% url 'admin:apps_place_changelist' %}" style="font-size:12px;color:#c9a961;text-decoration:none;font-weight:500;">View all</a>
+      </div>
+      {% for place in recent_places %}
+      <div style="padding:1rem 1.5rem;border-bottom:1px solid #fafaf9;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <p style="font-size:14px;font-weight:600;color:#1c1917;margin:0 0 2px;">{{ place.name }}</p>
+          <p style="font-size:12px;color:#78716c;margin:0;">{{ place.category }}</p>
+        </div>
+        <a href="{% url 'admin:apps_place_change' place.pk %}" style="font-size:12px;color:#c9a961;text-decoration:none;font-weight:500;">Edit</a>
+      </div>
+      {% empty %}
+      <p style="padding:2rem;text-align:center;color:#a8a29e;font-size:13px;margin:0;">No places yet</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

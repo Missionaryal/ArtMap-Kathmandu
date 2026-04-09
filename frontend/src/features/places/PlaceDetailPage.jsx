@@ -1,11 +1,23 @@
+// PlaceDetailPage.jsx
+// The full detail page for a single art space.
+// Shows a photo gallery, description, reviews (with CRUD for the author),
+// tagged user posts, contact info sidebar, and a mini Leaflet map.
+// Key decisions:
+// - No hardcoded fallback image — Camera icon shown instead if no photos
+// - Review photos sent as FormData using createReview
+// - Toast notification for bookmark/share/review feedback
+// - Bookmarking redirects to /login if the user is not logged in
+
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import {
   MapPin,
   Star,
   ChevronLeft,
   Heart,
-  Share2,
   Clock,
   Phone,
   Globe,
@@ -29,11 +41,33 @@ import { toggleBookmark, checkBookmark } from "../../api/bookmarksApi";
 import { getPlacePosts, getPlacePhotos } from "../../api/postsApi";
 import { useAuth } from "../../hooks/useAuth";
 
-// ─── Toast Component ──────────────────────────────────────────────────────────
+// Fix Leaflet default icon broken by bundlers
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
+  iconUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
+  shadowUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
+});
+
+// Custom gold teardrop marker for the mini-map
+const goldIcon = L.divIcon({
+  className: "",
+  html: `<div style="width:32px;height:32px;background:white;border:3px solid #C9A961;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,0.3);">
+    <div style="position:absolute;inset:4px;background:#C9A961;border-radius:50% 50% 50% 0;opacity:0.7;"></div>
+  </div>`,
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+  popupAnchor: [0, -36],
+});
+
+// Small notification shown at the bottom of the screen after user actions
 function Toast({ message, visible }) {
   if (!visible) return null;
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-stone-900 text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-2 text-sm font-medium animate-in fade-in slide-in-from-bottom-4">
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-stone-900 text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-2 text-sm font-medium">
       <Check className="w-4 h-4 text-gold-400" />
       {message}
     </div>
@@ -53,14 +87,14 @@ export default function PlaceDetailPage() {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
-
-  // Toast state
   const [toast, setToast] = useState({ visible: false, message: "" });
 
-  // Review state
+  // Review editing state
   const [editingReviewId, setEditingReviewId] = useState(null);
   const [editedContent, setEditedContent] = useState("");
   const [editedRating, setEditedRating] = useState(5);
+
+  // New review form state
   const [newReview, setNewReview] = useState("");
   const [userRating, setUserRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
@@ -72,7 +106,6 @@ export default function PlaceDetailPage() {
   useEffect(() => {
     fetchPlaceData();
   }, [id]);
-
   useEffect(() => {
     if (user) checkIfBookmarked();
   }, [id, user]);
@@ -88,25 +121,21 @@ export default function PlaceDetailPage() {
         getPlaceById(id),
         getPlaceReviews(id),
       ]);
-
+      // Posts and photos can fail silently — they are optional
       try {
-        const postsData = await getPlacePosts(id);
-        setPosts(postsData);
+        setPosts(await getPlacePosts(id));
       } catch {
         setPosts([]);
       }
-
       try {
-        const photosData = await getPlacePhotos(id);
-        setPhotos(photosData);
+        setPhotos(await getPlacePhotos(id));
       } catch {
         setPhotos([]);
       }
-
       setPlace(placeData);
       setReviews(reviewsData);
     } catch (err) {
-      console.error("Error fetching place:", err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -116,12 +145,11 @@ export default function PlaceDetailPage() {
     try {
       const result = await checkBookmark(id);
       setIsBookmarked(result.bookmarked);
-    } catch (err) {
-      console.error(err);
-    }
+    } catch {}
   };
 
   const handleBookmark = async () => {
+    // Redirect unauthenticated users to login
     if (!user) {
       navigate("/login");
       return;
@@ -130,33 +158,30 @@ export default function PlaceDetailPage() {
     try {
       const result = await toggleBookmark(id);
       setIsBookmarked(result.bookmarked);
-      showToast(
-        result.bookmarked
-          ? "Place saved to bookmarks!"
-          : "Removed from bookmarks",
-      );
-    } catch (err) {
-      console.error(err);
+      showToast(result.bookmarked ? "Place saved!" : "Removed from bookmarks");
+    } catch {
     } finally {
       setBookmarkLoading(false);
     }
   };
 
   const handleShare = async () => {
-    const url = window.location.href;
+    // Use native share sheet on mobile, copy URL to clipboard on desktop
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: place.name,
-          text: place.description,
-          url,
-        });
-      } catch {
-        // user cancelled share
-      }
+        await navigator.share({ title: place.name, url: window.location.href });
+      } catch {}
     } else {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(window.location.href);
       showToast("Link copied to clipboard!");
+    }
+  };
+
+  const handleViewOnMap = () => {
+    if (place?.latitude && place?.longitude) {
+      navigate(
+        `/map?lat=${place.latitude}&lng=${place.longitude}&placeId=${place.id}&name=${encodeURIComponent(place.name)}`,
+      );
     }
   };
 
@@ -192,8 +217,7 @@ export default function PlaceDetailPage() {
       setReviews(reviews.map((r) => (r.id === reviewId ? updated : r)));
       handleCancelEdit();
       showToast("Review updated!");
-    } catch (err) {
-      console.error(err);
+    } catch {
     } finally {
       setSubmitting(false);
     }
@@ -220,9 +244,10 @@ export default function PlaceDetailPage() {
       const formData = new FormData();
       formData.append("rating", userRating);
       formData.append("comment", newReview);
+      // Optional photo attachment
       if (selectedPhoto) formData.append("photo", selectedPhoto);
-
       const created = await createReview(id, formData);
+      // Prepend the new review so it appears at the top
       setReviews([created, ...reviews]);
       setNewReview("");
       setUserRating(0);
@@ -242,9 +267,7 @@ export default function PlaceDetailPage() {
       await deleteReview(reviewId);
       setReviews(reviews.filter((r) => r.id !== reviewId));
       showToast("Review deleted");
-    } catch (err) {
-      console.error(err);
-    }
+    } catch {}
   };
 
   if (loading) {
@@ -271,14 +294,14 @@ export default function PlaceDetailPage() {
     );
   }
 
+  // Build image array from gallery photos, fall back to legacy image field.
+  // No hardcoded Unsplash fallback — Camera placeholder shown instead if empty.
   const galleryImages =
     photos.length > 0
       ? photos.map((p) => p.photo_url).filter(Boolean)
       : place.image
         ? [place.image]
-        : [
-            "https://images.unsplash.com/photo-1582555172866-f73bb12a2ab3?w=800",
-          ];
+        : [];
 
   const avgRating =
     reviews.length > 0
@@ -289,10 +312,9 @@ export default function PlaceDetailPage() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* Toast */}
       <Toast message={toast.message} visible={toast.visible} />
 
-      {/* Top Nav */}
+      {/* Sticky back button */}
       <div className="bg-white border-b border-stone-200 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-4">
           <button
@@ -305,16 +327,20 @@ export default function PlaceDetailPage() {
         </div>
       </div>
 
-      {/* Gallery */}
+      {/* Photo gallery — main large image + up to 4 thumbnails */}
       <div className="bg-stone-100/30 py-8">
         <div className="max-w-7xl mx-auto px-6 lg:px-12">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="h-80 lg:h-[500px] rounded-2xl overflow-hidden bg-stone-200">
-              <img
-                src={galleryImages[activeImageIndex]}
-                alt={place.name}
-                className="w-full h-full object-cover"
-              />
+            <div className="h-80 lg:h-[500px] rounded-2xl overflow-hidden bg-stone-200 flex items-center justify-center">
+              {galleryImages.length > 0 ? (
+                <img
+                  src={galleryImages[activeImageIndex]}
+                  alt={place.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <Camera className="w-12 h-12 text-stone-400" />
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               {galleryImages.length > 1
@@ -322,11 +348,7 @@ export default function PlaceDetailPage() {
                     <div
                       key={index + 1}
                       onClick={() => setActiveImageIndex(index + 1)}
-                      className={`h-36 lg:h-60 rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 hover:opacity-90 ${
-                        activeImageIndex === index + 1
-                          ? "ring-2 ring-gold-400 ring-offset-2"
-                          : ""
-                      }`}
+                      className={`h-36 lg:h-60 rounded-2xl overflow-hidden cursor-pointer transition-all hover:opacity-90 ${activeImageIndex === index + 1 ? "ring-2 ring-gold-400 ring-offset-2" : ""}`}
                     >
                       <img
                         src={img}
@@ -335,7 +357,8 @@ export default function PlaceDetailPage() {
                       />
                     </div>
                   ))
-                : [1, 2, 3, 4].map((i) => (
+                : // Camera placeholder thumbnails when not enough photos
+                  [1, 2, 3, 4].map((i) => (
                     <div
                       key={i}
                       className="h-36 lg:h-60 rounded-2xl bg-stone-200 flex items-center justify-center"
@@ -348,12 +371,12 @@ export default function PlaceDetailPage() {
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main content */}
       <div className="max-w-7xl mx-auto px-6 lg:px-12 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-          {/* Left Column */}
+          {/* Left — description, reviews, posts */}
           <div className="lg:col-span-2">
-            {/* Place Header */}
+            {/* Place header */}
             <div className="mb-12">
               <span className="inline-block px-3 py-1 bg-gold-100 text-gold-600 text-sm font-medium rounded-full mb-3 capitalize">
                 {place.category?.replace("_", " ")}
@@ -381,9 +404,8 @@ export default function PlaceDetailPage() {
                 )}
               </div>
 
-              {/* Action Buttons */}
+              {/* Action buttons */}
               <div className="flex gap-3 mb-8">
-                {/* Bookmark Button */}
                 <button
                   onClick={handleBookmark}
                   disabled={bookmarkLoading}
@@ -394,16 +416,12 @@ export default function PlaceDetailPage() {
                   }`}
                 >
                   <Heart
-                    className={`w-5 h-5 transition-all ${
-                      isBookmarked ? "fill-gold-400 text-gold-400" : ""
-                    }`}
+                    className={`w-5 h-5 ${isBookmarked ? "fill-gold-400 text-gold-400" : ""}`}
                   />
                   <span className="text-sm font-medium">
                     {bookmarkLoading ? "..." : isBookmarked ? "Saved" : "Save"}
                   </span>
                 </button>
-
-                {/* Share Button */}
                 <button
                   onClick={handleShare}
                   className="flex items-center gap-2 px-5 py-2.5 bg-white border-2 border-stone-300 text-stone-700 rounded-xl hover:border-gold-400 hover:text-gold-600 transition-all"
@@ -420,7 +438,7 @@ export default function PlaceDetailPage() {
               )}
             </div>
 
-            {/* Reviews Section */}
+            {/* Reviews section */}
             <div className="mb-12">
               <div className="flex items-center gap-3 mb-8">
                 <MessageSquare className="w-6 h-6 text-gold-600" />
@@ -457,6 +475,7 @@ export default function PlaceDetailPage() {
                 </div>
               )}
 
+              {/* Write a review form — only shown to logged-in users */}
               {user ? (
                 <div className="bg-white rounded-2xl border border-stone-200 p-8">
                   <h3 className="text-xl font-serif font-bold text-stone-900 mb-6">
@@ -478,11 +497,7 @@ export default function PlaceDetailPage() {
                             className="transition-transform hover:scale-110"
                           >
                             <Star
-                              className={`w-8 h-8 transition-colors ${
-                                star <= (hoverRating || userRating)
-                                  ? "fill-gold-400 text-gold-400"
-                                  : "fill-stone-200 text-stone-200"
-                              }`}
+                              className={`w-8 h-8 transition-colors ${star <= (hoverRating || userRating) ? "fill-gold-400 text-gold-400" : "fill-stone-200 text-stone-200"}`}
                             />
                           </button>
                         ))}
@@ -498,6 +513,7 @@ export default function PlaceDetailPage() {
                     {reviewError && (
                       <p className="text-sm text-red-600">{reviewError}</p>
                     )}
+                    {/* Photo preview with remove button */}
                     {photoPreview && (
                       <div className="relative inline-block">
                         <img
@@ -551,7 +567,7 @@ export default function PlaceDetailPage() {
               )}
             </div>
 
-            {/* Tagged Posts */}
+            {/* Tagged user posts */}
             {posts.length > 0 && (
               <div>
                 <div className="flex items-center gap-3 mb-8">
@@ -568,7 +584,7 @@ export default function PlaceDetailPage() {
                     >
                       <div className="relative w-full h-full">
                         <img
-                          src={post.photo}
+                          src={post.photo_url || post.photo}
                           alt=""
                           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                         />
@@ -587,9 +603,9 @@ export default function PlaceDetailPage() {
             )}
           </div>
 
-          {/* Right Sidebar */}
+          {/* Right sidebar — info card + mini map */}
           <div className="lg:sticky lg:top-24 h-fit space-y-6">
-            {/* Information Card */}
+            {/* Contact information card */}
             <div className="bg-white rounded-2xl border border-stone-200 p-6">
               <h3 className="text-lg font-serif font-bold text-stone-900 mb-5">
                 Information
@@ -673,41 +689,58 @@ export default function PlaceDetailPage() {
               </div>
             </div>
 
-            {/* Map Card */}
+            {/* Mini map + View on ArtMap button */}
             <div className="bg-white rounded-2xl border border-stone-200 p-6">
-              <div className="bg-stone-100 rounded-xl h-48 overflow-hidden mb-4">
-                {place.latitude && place.longitude ? (
-                  <iframe
-                    title="map"
-                    width="100%"
-                    height="100%"
-                    frameBorder="0"
-                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${
-                      place.longitude - 0.01
-                    }%2C${place.latitude - 0.01}%2C${
-                      place.longitude + 0.01
-                    }%2C${place.latitude + 0.01}&layer=mapnik&marker=${
-                      place.latitude
-                    }%2C${place.longitude}`}
-                    className="rounded-xl"
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-stone-400">
-                    <MapPin className="w-8 h-8 mb-2" />
-                    <span className="text-xs">No location set</span>
+              <h3 className="text-lg font-serif font-bold text-stone-900 mb-4">
+                Location
+              </h3>
+              {place.latitude && place.longitude ? (
+                <>
+                  <div
+                    className="rounded-xl overflow-hidden mb-4"
+                    style={{ height: 200 }}
+                  >
+                    {/* Mini-map is non-interactive — just a visual reference */}
+                    <MapContainer
+                      center={[place.latitude, place.longitude]}
+                      zoom={15}
+                      style={{ height: "100%", width: "100%" }}
+                      zoomControl={false}
+                      scrollWheelZoom={false}
+                      dragging={false}
+                      doubleClickZoom={false}
+                      touchZoom={false}
+                      attributionControl={false}
+                    >
+                      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                      <Marker
+                        position={[place.latitude, place.longitude]}
+                        icon={goldIcon}
+                      >
+                        <Popup>
+                          <p className="font-semibold text-sm">{place.name}</p>
+                          {place.location && (
+                            <p className="text-xs text-stone-500">
+                              {place.location}
+                            </p>
+                          )}
+                        </Popup>
+                      </Marker>
+                    </MapContainer>
                   </div>
-                )}
-              </div>
-              {place.latitude && place.longitude && (
-                <a
-                  href={`https://www.openstreetmap.org/?mlat=${place.latitude}&mlon=${place.longitude}&zoom=16`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 w-full py-3 text-center bg-gold-400 text-white rounded-xl font-medium hover:bg-gold-500 transition-colors text-sm"
-                >
-                  <MapPin className="w-4 h-4" />
-                  View on Map
-                </a>
+                  {/* Opens the full MapPage with this place focused */}
+                  <button
+                    onClick={handleViewOnMap}
+                    className="w-full py-3 bg-gold-400 text-white rounded-xl font-medium hover:bg-gold-500 transition-colors text-sm"
+                  >
+                    View on ArtMap
+                  </button>
+                </>
+              ) : (
+                <div className="h-48 bg-stone-100 rounded-xl flex flex-col items-center justify-center text-stone-400">
+                  <MapPin className="w-8 h-8 mb-2" />
+                  <span className="text-xs">No location set</span>
+                </div>
               )}
             </div>
           </div>
@@ -717,7 +750,7 @@ export default function PlaceDetailPage() {
   );
 }
 
-// ─── Review Card ──────────────────────────────────────────────────────────────
+// Individual review card — shows edit/delete controls to the review's author
 function ReviewCard({
   review,
   currentUser,
@@ -732,6 +765,7 @@ function ReviewCard({
   onDelete,
   submitting,
 }) {
+  // Match by username since we don't expose the user ID in the review serializer
   const isAuthor = currentUser && review.user_name === currentUser.username;
   const isEditing = editingReviewId === review.id;
 
@@ -786,11 +820,7 @@ function ReviewCard({
                 className="transition-transform hover:scale-110"
               >
                 <Star
-                  className={`w-6 h-6 ${
-                    star <= editedRating
-                      ? "fill-gold-400 text-gold-400"
-                      : "fill-stone-200 text-stone-200"
-                  }`}
+                  className={`w-6 h-6 ${star <= editedRating ? "fill-gold-400 text-gold-400" : "fill-stone-200 text-stone-200"}`}
                 />
               </button>
             ))}
@@ -823,17 +853,14 @@ function ReviewCard({
             {[1, 2, 3, 4, 5].map((star) => (
               <Star
                 key={star}
-                className={`w-4 h-4 ${
-                  star <= review.rating
-                    ? "fill-gold-400 text-gold-400"
-                    : "fill-stone-200 text-stone-200"
-                }`}
+                className={`w-4 h-4 ${star <= review.rating ? "fill-gold-400 text-gold-400" : "fill-stone-200 text-stone-200"}`}
               />
             ))}
           </div>
           <p className="text-stone-700 leading-relaxed text-sm">
             {review.comment}
           </p>
+          {/* Photo attached to the review */}
           {review.photo && (
             <img
               src={review.photo}

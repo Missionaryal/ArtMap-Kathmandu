@@ -1,3 +1,8 @@
+// Reviews.jsx
+// Shows all reviews left by visitors at the creator's place.
+// Includes a rating summary with star distribution, and individual review cards.
+// The "Reply" button is a UI placeholder — actual reply storage is not yet implemented in the backend.
+
 import { Star, MessageSquare } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getCreatorReviews } from "../../../api/creatorApi";
@@ -5,6 +10,7 @@ import { getCreatorReviews } from "../../../api/creatorApi";
 export default function Reviews() {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Tracks which review the creator is currently typing a reply for
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState("");
 
@@ -23,6 +29,7 @@ export default function Reviews() {
     }
   };
 
+  // Marks a review as "responded" in local state — UI only, not saved to backend yet
   const handleReply = (reviewId) => {
     setReviews(
       reviews.map((r) => (r.id === reviewId ? { ...r, responded: true } : r)),
@@ -31,7 +38,7 @@ export default function Reviews() {
     setReplyText("");
   };
 
-  // Calculate stats
+  // Calculate overall average rating
   const avgRating =
     reviews.length > 0
       ? (
@@ -39,11 +46,10 @@ export default function Reviews() {
         ).toFixed(1)
       : 0;
 
+  // Count how many reviews have each star rating (1–5)
   const ratingCounts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
   reviews.forEach((r) => {
-    if (ratingCounts.hasOwnProperty(r.rating)) {
-      ratingCounts[r.rating]++;
-    }
+    if (ratingCounts.hasOwnProperty(r.rating)) ratingCounts[r.rating]++;
   });
 
   const ratingDistribution = [5, 4, 3, 2, 1].map((stars) => ({
@@ -55,13 +61,11 @@ export default function Reviews() {
         : 0,
   }));
 
-  if (loading) {
+  if (loading)
     return <div className="text-center py-8">Loading reviews...</div>;
-  }
 
   return (
     <div>
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-serif font-bold text-stone-900 mb-2">
           Reviews
@@ -69,11 +73,11 @@ export default function Reviews() {
         <p className="text-stone-600">See what visitors are saying</p>
       </div>
 
-      {/* Rating Summary */}
+      {/* Rating Summary — only shown if there are reviews */}
       {reviews.length > 0 && (
         <div className="bg-white border border-stone-200 rounded-lg p-6 shadow-sm mb-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Left: Overall Rating */}
+            {/* Overall average score */}
             <div className="flex flex-col items-center justify-center">
               <div className="text-3xl font-serif font-bold text-stone-900 mb-2">
                 {avgRating}
@@ -82,18 +86,14 @@ export default function Reviews() {
                 {[1, 2, 3, 4, 5].map((star) => (
                   <Star
                     key={star}
-                    className={`w-5 h-5 ${
-                      star <= Math.round(avgRating)
-                        ? "fill-gold-400 text-gold-400"
-                        : "fill-stone-200 text-stone-200"
-                    }`}
+                    className={`w-5 h-5 ${star <= Math.round(avgRating) ? "fill-gold-400 text-gold-400" : "fill-stone-200 text-stone-200"}`}
                   />
                 ))}
               </div>
               <p className="text-sm text-stone-500">{reviews.length} reviews</p>
             </div>
 
-            {/* Right: Rating Distribution */}
+            {/* Bar chart showing how many reviews each star rating has */}
             <div className="space-y-2">
               {ratingDistribution.map((rating) => (
                 <div key={rating.stars} className="flex items-center gap-3">
@@ -117,7 +117,7 @@ export default function Reviews() {
         </div>
       )}
 
-      {/* Review Cards */}
+      {/* Individual Review Cards */}
       {reviews.length > 0 ? (
         <div className="space-y-4">
           {reviews.map((review) => (
@@ -125,7 +125,6 @@ export default function Reviews() {
               key={review.id}
               className="bg-white border border-stone-200 rounded-lg p-6 shadow-sm"
             >
-              {/* Header */}
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-gold-100 flex items-center justify-center">
@@ -147,11 +146,7 @@ export default function Reviews() {
                     {[1, 2, 3, 4, 5].map((star) => (
                       <Star
                         key={star}
-                        className={`w-4 h-4 ${
-                          star <= review.rating
-                            ? "fill-gold-400 text-gold-400"
-                            : "fill-stone-200 text-stone-200"
-                        }`}
+                        className={`w-4 h-4 ${star <= review.rating ? "fill-gold-400 text-gold-400" : "fill-stone-200 text-stone-200"}`}
                       />
                     ))}
                   </div>
@@ -163,10 +158,9 @@ export default function Reviews() {
                 </div>
               </div>
 
-              {/* Content */}
               <p className="text-sm text-stone-700 mb-4">{review.comment}</p>
 
-              {/* Reply Section */}
+              {/* Reply button — only shown if the review hasn't been replied to yet */}
               {!review.responded && replyingTo !== review.id && (
                 <button
                   onClick={() => setReplyingTo(review.id)}
@@ -177,7 +171,7 @@ export default function Reviews() {
                 </button>
               )}
 
-              {/* Reply Form */}
+              {/* Inline reply form */}
               {replyingTo === review.id && (
                 <div className="pl-4 border-l-2 border-gold-200 mt-4">
                   <textarea

@@ -1,3 +1,9 @@
+// SettingsSection.jsx
+// The settings section of the creator dashboard.
+// Shows toggle switches for creator preferences and a danger zone for deactivating the listing.
+// Note: These settings are currently stored in local React state only.
+// To make them persistent, a settings API endpoint would need to be added to the backend.
+
 import { useState } from "react";
 
 export default function SettingsSection() {
@@ -8,6 +14,7 @@ export default function SettingsSection() {
     autoApproveTaggedPosts: false,
   });
 
+  // Toggle a specific setting on or off
   const toggleSetting = (key) => {
     setSettings({ ...settings, [key]: !settings[key] });
   };
@@ -37,7 +44,6 @@ export default function SettingsSection() {
 
   return (
     <div>
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-serif font-bold text-stone-900 mb-2">
           Settings
@@ -45,31 +51,26 @@ export default function SettingsSection() {
         <p className="text-stone-600">Manage your preferences</p>
       </div>
 
-      {/* Preferences Card */}
+      {/* Preferences — toggle switches */}
       <div className="bg-white border border-stone-200 rounded-lg p-6 shadow-sm mb-8">
         <h3 className="font-semibold text-stone-900 mb-4">Preferences</h3>
         <div className="divide-y divide-stone-200">
           {preferences.map((pref, index) => (
             <div
               key={pref.key}
-              className={`flex items-center justify-between ${
-                index === 0 ? "pb-4" : "py-4"
-              }`}
+              className={`flex items-center justify-between ${index === 0 ? "pb-4" : "py-4"}`}
             >
               <div>
                 <h4 className="font-medium text-stone-900">{pref.title}</h4>
                 <p className="text-sm text-stone-500">{pref.description}</p>
               </div>
+              {/* Custom toggle switch — gold when on, grey when off */}
               <button
                 onClick={() => toggleSetting(pref.key)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  settings[pref.key] ? "bg-gold-400" : "bg-stone-300"
-                }`}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings[pref.key] ? "bg-gold-400" : "bg-stone-300"}`}
               >
                 <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    settings[pref.key] ? "translate-x-6" : "translate-x-1"
-                  }`}
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings[pref.key] ? "translate-x-6" : "translate-x-1"}`}
                 />
               </button>
             </div>
@@ -77,7 +78,7 @@ export default function SettingsSection() {
         </div>
       </div>
 
-      {/* Danger Zone */}
+      {/* Danger Zone — deactivating hides the listing from all visitors */}
       <div className="bg-white border border-red-200 rounded-lg p-6 shadow-sm">
         <h3 className="font-semibold text-red-600 mb-2">Danger Zone</h3>
         <p className="text-sm text-stone-600 mb-4">

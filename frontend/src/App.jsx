@@ -1,3 +1,9 @@
+// App.jsx
+// The root of the React application.
+// Sets up routing, wraps everything in AuthProvider so all components can
+// access the logged-in user, and conditionally shows or hides the Navbar/Footer
+// depending on which page is open.
+
 import {
   BrowserRouter as Router,
   Routes,
@@ -13,33 +19,56 @@ import MapPage from "./features/home/MapPage";
 import AboutPage from "./features/home/AboutPage";
 import LoginPage from "./features/auth/LoginPage";
 import RegisterPage from "./features/auth/RegisterPage";
+import ForgotPasswordPage from "./features/auth/ForgotPasswordPage";
+import ResetPasswordPage from "./features/auth/ResetPasswordPage";
 import PlaceDetailPage from "./features/places/PlaceDetailPage";
 import ProfilePage from "./features/profile/ProfilePage";
 import ProtectedRoute from "./features/auth/ProtectedRoute";
 import CreatorRoute from "./features/auth/CreatorRoute";
-import ForgotPasswordPage from "./features/auth/ForgotPasswordPage";
 import CreatorDashboard from "./features/creator/CreatorDashboard";
 
+// These paths get no Navbar or Footer — they have their own full-screen layout
+const AUTH_PATHS = ["/login", "/register", "/forgot-password"];
+
+// AppContent is a separate component so it can use useLocation(),
+// which only works inside a <Router> — we can't call it directly in App()
 function AppContent() {
   const location = useLocation();
+
+  // The creator dashboard has its own sidebar, so it doesn't need the global Navbar
   const isCreatorPath = location.pathname.startsWith("/creator");
+
+  // Auth pages (login, register, etc.) have their own full-screen layouts
+  const isAuthPath =
+    AUTH_PATHS.includes(location.pathname) ||
+    location.pathname.startsWith("/reset-password");
+
+  // Hide the global Navbar and Footer for both creator and auth pages
+  const hideShell = isCreatorPath || isAuthPath;
 
   return (
     <div className="min-h-screen flex flex-col">
-      {!isCreatorPath && <Navbar />}
+      {!hideShell && <Navbar />}
       <main className="flex-grow">
         <Routes>
-          {/* Public routes */}
+          {/* Public pages — accessible without logging in */}
           <Route path="/" element={<HomePage />} />
           <Route path="/explore" element={<ExplorePage />} />
           <Route path="/map" element={<MapPage />} />
           <Route path="/about" element={<AboutPage />} />
+          <Route path="/places/:id" element={<PlaceDetailPage />} />
+
+          {/* Auth pages — no Navbar or Footer */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/places/:id" element={<PlaceDetailPage />} />
+          {/* uidb64 and token come from the password reset email link */}
+          <Route
+            path="/reset-password/:uidb64/:token"
+            element={<ResetPasswordPage />}
+          />
 
-          {/* Protected user routes */}
+          {/* Protected — requires any logged-in user */}
           <Route
             path="/profile"
             element={
@@ -49,17 +78,18 @@ function AppContent() {
             }
           />
 
-          {/* Creator-only routes — protected by CreatorRoute */}
+          {/* Creator-only — CreatorRoute redirects non-approved users to /profile */}
           <Route element={<CreatorRoute />}>
             <Route path="/creator" element={<CreatorDashboard />} />
           </Route>
         </Routes>
       </main>
-      {!isCreatorPath && <Footer />}
+      {!hideShell && <Footer />}
     </div>
   );
 }
 
+// App wraps everything in AuthProvider (global auth state) and Router (URL handling)
 function App() {
   return (
     <AuthProvider>
