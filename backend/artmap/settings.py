@@ -4,10 +4,7 @@
 # so they are never hardcoded in the source code.
 
 from pathlib import Path
-from django.templatetags.static import static
 from django.urls import reverse_lazy
-# Using 'gettext' instead of the usual '_' alias to avoid a conflict with
-# the .env file loader which also uses '_' as a variable name
 from django.utils.translation import gettext_lazy as gettext
 import os
 
@@ -21,13 +18,10 @@ if env_file.exists():
     with open(env_file) as f:
         for line in f:
             line = line.strip()
-            # Skip blank lines and comments
             if line and not line.startswith("#") and "=" in line:
                 key, _, value = line.partition("=")
                 key = key.strip()
                 value = value.strip()
-                # Skip '_' because it is a shell built-in and would overwrite
-                # the gettext function if accidentally set in the .env file
                 if key and key != "_":
                     os.environ.setdefault(key, value)
 
@@ -44,14 +38,14 @@ DEBUG = os.environ.get("DEBUG", "True") == "True"
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
 
 INSTALLED_APPS = [
-    # Unfold is the custom admin theme that gives the admin panel its styled look
+    # Unfold is the custom admin theme — must come before django.contrib.admin
     "unfold",
     "unfold.contrib.filters",
     "unfold.contrib.forms",
     "unfold.contrib.import_export",
     "unfold.contrib.guardian",
     "unfold.contrib.simple_history",
-    # Django's built-in apps
+    # Django built-in apps
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -62,12 +56,12 @@ INSTALLED_APPS = [
     "apps.apps.AppsConfig",
     # Django REST Framework — handles the API
     "rest_framework",
-    # Allows the React frontend to call the Django API from a different port
+    # Allows the React frontend (port 5173) to call the Django API (port 8000)
     "corsheaders",
 ]
 
 MIDDLEWARE = [
-    # CORS must come first so it can add the right headers before other middleware runs
+    # CORS must come first so it adds headers before other middleware runs
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -100,7 +94,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "artmap.wsgi.application"
 
 # Database — PostgreSQL running locally
-# All values come from the .env file so credentials are never in the code
+# All credentials come from .env — never hardcoded here
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -112,7 +106,7 @@ DATABASES = {
     }
 }
 
-# Password rules — enforced when users set or change passwords
+# Password rules enforced when users set or change passwords
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -121,7 +115,6 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = "en-us"
-# Nepal Standard Time
 TIME_ZONE = "Asia/Kathmandu"
 USE_I18N = True
 USE_TZ = True
@@ -129,10 +122,9 @@ USE_TZ = True
 # Static files (CSS, JS, admin assets)
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "apps" / "static"]
-# Where collectstatic copies files to for production
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Media files (uploaded images — profile photos, place images, review photos, etc.)
+# Media files (uploaded images — profile photos, place images, review photos)
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
@@ -141,14 +133,12 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
-    # By default, anyone can read but only logged-in users can write
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticatedOrReadOnly",
     ),
 }
 
-# Allow the React frontend (running on port 5173) to call the Django API (port 8000)
-# Without this, browsers would block the requests due to CORS policy
+# Allow the React frontend to call the Django API
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -162,7 +152,6 @@ X_FRAME_OPTIONS = "SAMEORIGIN"
 SILENCED_SYSTEM_CHECKS = ["security.W019"]
 
 # Email — Gmail SMTP for sending password reset emails
-# Credentials are loaded from .env — never hardcoded here
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
@@ -171,11 +160,10 @@ EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = f"ArtMap Kathmandu <{os.environ.get('EMAIL_HOST_USER', 'noreply@artmap.com')}>"
 
-# The frontend URL is used when building the password reset link in emails
+# Frontend URL used when building password reset links in emails
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
 
-# The admin panel URL — kept secret so it is not easy to guess
-# Default is 'artmap-admin-2026' but should be changed in production via .env
+# Admin panel secret URL — change in .env for production
 ADMIN_URL = os.environ.get("ADMIN_URL", "artmap-admin-2026")
 
 
@@ -188,7 +176,6 @@ def dashboard_callback(request, context):
         "total_places": Place.objects.count(),
         "pending_count": CreatorProfile.objects.filter(status="pending").count(),
         "total_bookings": Booking.objects.count(),
-        # Show the 5 most recent pending creators for quick review
         "pending_creators": CreatorProfile.objects.filter(
             status="pending"
         ).select_related("user_profile__user").order_by("-created_at")[:5],
@@ -197,28 +184,20 @@ def dashboard_callback(request, context):
     return context
 
 
-# Shows a number badge on the Verification sidebar item when creators are waiting for approval
+# Shows a number badge on the Verification sidebar item
 def badge_callback(request):
     from apps.models import CreatorProfile
     count = CreatorProfile.objects.filter(status="pending").count()
     return str(count) if count > 0 else None
 
 
-# Unfold admin theme configuration — controls the look and layout of the admin panel
+# Unfold admin theme configuration
+# SITE_LOGO and SITE_ICON removed — the logo filename has spaces which
+# causes Django's static file loader to serve a broken image in the admin header
 UNFOLD = {
     "SITE_TITLE": "ArtMap",
     "SITE_HEADER": "ArtMap Admin",
-    # Clicking the logo in the admin goes to the main site
     "SITE_URL": "/",
-    # Use the ArtMap logo in the admin panel header
-    "SITE_ICON": {
-        "light": lambda request: static("artmap final logo.jpeg"),
-        "dark": lambda request: static("artmap final logo.jpeg"),
-    },
-    "SITE_LOGO": {
-        "light": lambda request: static("artmap final logo.jpeg"),
-        "dark": lambda request: static("artmap final logo.jpeg"),
-    },
     "SHOW_HISTORY": False,
     "SHOW_VIEW_ON_SITE": False,
     "DASHBOARD_CALLBACK": "artmap.settings.dashboard_callback",
@@ -238,7 +217,7 @@ UNFOLD = {
             "950": "47 35 21",
         },
     },
-    # Custom sidebar navigation — only show the sections we need
+    # Custom sidebar navigation
     "SIDEBAR": {
         "show_search": False,
         "show_all_applications": False,
@@ -261,7 +240,7 @@ UNFOLD = {
                         "link": reverse_lazy("admin:apps_place_changelist"),
                     },
                     {
-                        # Shows a badge with the number of pending creator applications
+                        # Badge shows number of pending creator applications
                         "title": gettext("Verification"),
                         "icon": "verified_user",
                         "link": reverse_lazy("admin:apps_creatorprofile_changelist"),

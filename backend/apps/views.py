@@ -10,6 +10,7 @@ from django.utils.encoding import force_bytes, force_str
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings as django_settings
+from django.shortcuts import get_object_or_404
 
 from rest_framework import viewsets, generics, permissions, status, serializers
 from rest_framework.decorators import api_view, permission_classes
@@ -84,14 +85,15 @@ class PostViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
-        # ?my_posts=true — return only this user's posts
+        # ?my_posts=true — return only this user's own posts (for profile page)
         if self.request.query_params.get('my_posts') == 'true':
             if self.request.user.is_authenticated:
                 try:
                     return Post.objects.filter(user=self.request.user.userprofile)
                 except Exception:
                     return Post.objects.none()
-        # ?my_places=true — return posts tagged at this creator's places
+        # ?my_places=true — return ALL posts (pending + approved) tagged at this creator's places
+        # Only used by the creator dashboard TaggedPosts section
         if self.request.query_params.get('my_places') == 'true':
             if self.request.user.is_authenticated:
                 try:
@@ -99,8 +101,9 @@ class PostViewSet(viewsets.ModelViewSet):
                     return Post.objects.filter(place__creator=creator_profile)
                 except Exception:
                     return Post.objects.none()
-        # Default — return all public posts
-        return Post.objects.filter(is_public=True)
+        # Default — return all public AND approved posts only
+        # This is what the public place detail page sees
+        return Post.objects.filter(is_public=True, is_approved=True)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -109,6 +112,7 @@ class PostViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         # Get or create a UserProfile for the logged-in user, then attach it to the post
+        # New posts are saved with is_approved=False by default — creator must approve
         user_profile, _ = UserProfile.objects.get_or_create(user=self.request.user)
         serializer.save(user=user_profile)
 
@@ -119,7 +123,7 @@ class PostViewSet(viewsets.ModelViewSet):
         return [IsAuthenticatedOrReadOnly()]
 
 
-# Handles CRUD for reviews through the router (not commonly used directly)
+# Handles CRUD for reviews through the router
 class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
@@ -173,7 +177,6 @@ def place_reviews(request, place_id):
     serializer = ReviewSerializer(data=request.data, context={"request": request})
     if serializer.is_valid():
         review = serializer.save(user=user_profile, place=place)
-        # Re-serialize with request context so the photo_url comes back as a full http://... URL
         return Response(
             ReviewSerializer(review, context={"request": request}).data,
             status=201
@@ -203,7 +206,6 @@ def review_detail(request, review_id):
         )
         if serializer.is_valid():
             updated_review = serializer.save()
-            # Re-serialize to return the full photo URL in the response
             return Response(
                 ReviewSerializer(updated_review, context={"request": request}).data
             )
@@ -214,7 +216,6 @@ def review_detail(request, review_id):
 
 
 # GET /api/user/me/ — returns the logged-in user's full profile info
-# Used after login to know if the user is a creator, admin, etc.
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_user_info(request):
@@ -236,7 +237,6 @@ def get_user_info(request):
         "creator_status": None,
         "business_name": None,
     }
-    # Add creator-specific fields if this user has a creator profile
     try:
         profile = user.userprofile
         if profile.is_creator:
@@ -256,7 +256,6 @@ def update_user(request):
     user = request.user
     username = request.data.get("username")
     if username:
-        # Make sure the new username isn't already taken by someone else
         if User.objects.filter(username=username).exclude(id=user.id).exists():
             return Response({"username": ["This username is already taken."]}, status=400)
         user.username = username
@@ -297,7 +296,6 @@ def upload_profile_picture(request):
 
 
 # GET /api/creator/stats/ — returns dashboard numbers for a creator
-# (total places, reviews, bookings, etc.)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_creator_stats(request):
@@ -314,6 +312,10 @@ def get_creator_stats(request):
             "total_events": Event.objects.filter(creator=creator_profile).count(),
             "total_bookings": Booking.objects.filter(event__creator=creator_profile).count(),
             "total_bookmarks": Bookmark.objects.filter(place__creator=creator_profile).count(),
+            # Count how many tagged posts are still waiting for approval
+            "pending_posts": Post.objects.filter(
+                place__creator=creator_profile, is_approved=False, is_public=True
+            ).count(),
             "status": creator_profile.status,
             "verified": creator_profile.verified,
         })
@@ -327,7 +329,6 @@ class CreatorProfileViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Only return the profile belonging to the logged-in user
         try:
             return CreatorProfile.objects.filter(user_profile=self.request.user.userprofile)
         except Exception:
@@ -345,30 +346,21 @@ def forgot_password(request):
     if not email:
         return Response({"error": "Email is required"}, status=400)
 
-    # Search by email ignoring case (gmail and GMAIL are the same)
     user = User.objects.filter(email__iexact=email).first()
-
-    # Always return the same message whether the email exists or not.
-    # This prevents attackers from using this endpoint to find out who is registered.
     success_msg = {"message": "If an account with this email exists, a reset link has been sent."}
 
     if not user:
         return Response(success_msg)
 
-    # Generate a secure one-time token for this user
     token = default_token_generator.make_token(user)
-    # Encode the user ID so it can be safely included in the URL
     uid = urlsafe_base64_encode(force_bytes(user.pk))
-    # Build the full reset link pointing to the frontend reset page
     reset_link = f"{django_settings.FRONTEND_URL}/reset-password/{uid}/{token}"
 
-    # Print to terminal as a backup — useful during development
     print(f"\n{'='*50}")
     print(f"PASSWORD RESET LINK for {email}:")
     print(f"{reset_link}")
     print(f"{'='*50}\n")
 
-    # Send the reset email via Gmail SMTP
     try:
         send_mail(
             subject="Reset your ArtMap password",
@@ -386,7 +378,6 @@ def forgot_password(request):
             fail_silently=False,
         )
     except Exception as e:
-        # Log the error but still return success — the link is printed to terminal as fallback
         print(f"Email send error: {e}")
         return Response(success_msg)
 
@@ -401,12 +392,10 @@ def reset_password(request, uidb64, token):
     if not password or len(password) < 6:
         return Response({"error": "Password must be at least 6 characters"}, status=400)
     try:
-        # Decode the user ID from the URL
         uid = force_str(urlsafe_base64_decode(uidb64))
         user = User.objects.get(pk=uid)
     except Exception:
         return Response({"error": "Invalid reset link"}, status=400)
-    # Check the token is valid and hasn't been used before
     if not default_token_generator.check_token(user, token):
         return Response({"error": "Reset link has expired. Please request a new one."}, status=400)
     user.set_password(password)
@@ -414,7 +403,7 @@ def reset_password(request, uidb64, token):
     return Response({"message": "Password reset successful"})
 
 
-# POST /api/places/<id>/bookmark/ — add or remove a bookmark (toggle)
+# POST /api/places/<id>/bookmark/ — toggle bookmark on a place
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def toggle_bookmark(request, place_id):
@@ -423,7 +412,6 @@ def toggle_bookmark(request, place_id):
     except Place.DoesNotExist:
         return Response({"error": "Place not found"}, status=404)
     user_profile, _ = UserProfile.objects.get_or_create(user=request.user)
-    # If already bookmarked, remove it. Otherwise, add it.
     bookmark = Bookmark.objects.filter(user=user_profile, place=place).first()
     if bookmark:
         bookmark.delete()
@@ -447,41 +435,34 @@ def check_bookmark(request, place_id):
 def get_user_bookmarks(request):
     user_profile, _ = UserProfile.objects.get_or_create(user=request.user)
     bookmarks = Bookmark.objects.filter(user=user_profile).select_related('place')
-    # Extract the Place objects from the bookmarks and serialize them
     places = [b.place for b in bookmarks]
     serializer = PlaceSerializer(places, many=True, context={"request": request})
     return Response(serializer.data)
 
 
-# Custom JWT login serializer that accepts email instead of username.
-# Django's default login uses username — we changed it to use email.
+# Custom JWT login serializer that accepts email instead of username
 class EmailAuthTokenSerializer(TokenObtainPairSerializer):
     email = serializers.EmailField()
     password = serializers.CharField()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Remove the username field since we're using email instead
         self.fields.pop("username", None)
 
     def validate(self, attrs):
         email = attrs.get("email")
         password = attrs.get("password")
         try:
-            # Search case-insensitively — Gmail and GMAIL are the same email
             users = User.objects.filter(email__iexact=email)
             user = None
             inactive_match = None
-            # Find the user with the correct password
             for u in users:
                 if u.check_password(password):
                     if u.is_active:
                         user = u
                         break
                     else:
-                        # Keep track of inactive match (e.g. pending creator)
                         inactive_match = u
-            # If no active match found, fall back to inactive (so we can show a better error)
             if not user and inactive_match:
                 user = inactive_match
             if not user:
@@ -491,14 +472,13 @@ class EmailAuthTokenSerializer(TokenObtainPairSerializer):
         except Exception:
             raise AuthenticationFailed("No account found with these credentials.")
 
-        # Show specific error messages for inactive accounts
         if not user.is_active:
             try:
                 user_profile = user.userprofile
                 if user_profile.is_creator:
                     creator_profile = user_profile.creatorprofile
                     if creator_profile.status == "rejected":
-                        raise AuthenticationFailed("Your creator application was not approved. Contact support@artmap.com")
+                        raise AuthenticationFailed("Your creator application was not approved.")
                     raise AuthenticationFailed("Your creator account is under review. This usually takes 24-48 hours.")
             except AuthenticationFailed:
                 raise
@@ -506,7 +486,6 @@ class EmailAuthTokenSerializer(TokenObtainPairSerializer):
                 pass
             raise AuthenticationFailed("This account is inactive. Please contact support.")
 
-        # Show error if creator is still pending or rejected but account is active
         try:
             user_profile = user.userprofile
             if user_profile.is_creator:
@@ -514,30 +493,31 @@ class EmailAuthTokenSerializer(TokenObtainPairSerializer):
                 if creator_profile.status == "pending":
                     raise AuthenticationFailed("Your creator account is under review. This usually takes 24-48 hours.")
                 elif creator_profile.status == "rejected":
-                    raise AuthenticationFailed("Your creator application was not approved. Contact support@artmap.com")
+                    raise AuthenticationFailed("Your creator application was not approved.")
         except AuthenticationFailed:
             raise
         except Exception:
             pass
 
-        # Generate JWT tokens for the logged-in user
         refresh = self.get_token(user)
         return {"refresh": str(refresh), "access": str(refresh.access_token)}
 
 
-# The actual login view that uses our custom email-based serializer
+# The actual login view using our custom email-based serializer
 class EmailAuthTokenView(TokenObtainPairView):
     serializer_class = EmailAuthTokenSerializer
 
 
-# GET /api/places/<id>/posts/ — get all public posts tagged at a place
+# GET /api/places/<id>/posts/ — get ONLY approved public posts tagged at a place
+# This is used by the public PlaceDetailPage — unapproved posts are hidden
 @api_view(["GET"])
 def place_posts(request, place_id):
     try:
         place = Place.objects.get(id=place_id)
     except Place.DoesNotExist:
         return Response({"error": "Place not found"}, status=404)
-    posts = Post.objects.filter(place=place, is_public=True)
+    # Only return posts that are public AND approved by the creator
+    posts = Post.objects.filter(place=place, is_public=True, is_approved=True)
     serializer = PostSerializer(posts, many=True, context={"request": request})
     return Response(serializer.data)
 
@@ -566,7 +546,6 @@ def get_creator_profile(request):
         if request.method == "GET":
             serializer = CreatorProfileSerializer(creator_profile)
             return Response(serializer.data)
-        # PUT — update the creator profile with partial data
         serializer = CreatorProfileSerializer(creator_profile, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
@@ -614,7 +593,6 @@ def create_creator_place(request):
 def update_creator_place(request, place_id):
     try:
         creator_profile = request.user.userprofile.creatorprofile
-        # Ensure the place belongs to this creator before allowing edits
         place = Place.objects.get(id=place_id, creator=creator_profile)
         serializer = PlaceSerializer(
             place, data=request.data, partial=True, context={"request": request}
@@ -653,7 +631,6 @@ def upload_place_photo(request, place_id):
 def delete_place_photo(request, photo_id):
     try:
         creator_profile = request.user.userprofile.creatorprofile
-        # Make sure the photo belongs to one of this creator's places
         photo = PlacePhoto.objects.get(id=photo_id, place__creator=creator_profile)
         photo.delete()
         return Response({"message": "Photo deleted"}, status=204)
@@ -663,17 +640,67 @@ def delete_place_photo(request, photo_id):
         return Response({"error": "Not a creator"}, status=403)
 
 
-# GET /api/creator/tagged-posts/ — posts that users tagged at this creator's places
+# GET /api/creator/tagged-posts/ — ALL posts (pending + approved) at the creator's place
+# The creator sees everything so they can decide what to approve or remove
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_creator_tagged_posts(request):
     try:
         creator_profile = request.user.userprofile.creatorprofile
-        posts = Post.objects.filter(place__creator=creator_profile, is_public=True)
-        serializer = PostSerializer(posts, many=True, context={"request": request})
-        return Response(serializer.data)
+        # Return ALL public posts — both pending and approved — for creator review
+        posts = Post.objects.filter(
+            place__creator=creator_profile, is_public=True
+        ).select_related('user__user')
+        data = [
+            {
+                'id': p.id,
+                'photo': request.build_absolute_uri(p.photo.url) if p.photo else None,
+                'caption': p.caption,
+                'is_approved': p.is_approved,
+                'created_at': p.created_at,
+                'user': {
+                    'username': p.user.user.username,
+                    'profile_picture': request.build_absolute_uri(p.user.profile_picture.url)
+                    if p.user.profile_picture else None,
+                }
+            }
+            for p in posts
+        ]
+        return Response(data)
     except AttributeError:
         return Response({"error": "Not a creator"}, status=403)
+
+
+# POST /api/creator/tagged-posts/<id>/approve/ — approve a tagged post
+# Once approved, the post becomes visible on the public place detail page
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def approve_tagged_post(request, post_id):
+    try:
+        creator_profile = request.user.userprofile.creatorprofile
+    except AttributeError:
+        return Response({"error": "Not a creator"}, status=403)
+
+    # get_object_or_404 ensures the post both exists and belongs to this creator's place
+    post = get_object_or_404(Post, id=post_id, place__creator=creator_profile)
+    post.is_approved = True
+    post.save()
+    return Response({"message": "Post approved", "id": post.id, "is_approved": True})
+
+
+# DELETE /api/creator/tagged-posts/<id>/remove/ — remove a tagged post
+# The post is permanently deleted — the user who posted it will no longer see it tagged here
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def remove_tagged_post(request, post_id):
+    try:
+        creator_profile = request.user.userprofile.creatorprofile
+    except AttributeError:
+        return Response({"error": "Not a creator"}, status=403)
+
+    post = get_object_or_404(Post, id=post_id, place__creator=creator_profile)
+    post.delete()
+    return Response({"message": "Post removed"}, status=204)
 
 
 # GET /api/creator/reviews/ — all reviews left at this creator's places
@@ -695,7 +722,6 @@ def get_creator_reviews(request):
 @api_view(["GET"])
 def get_upcoming_events(request):
     today = timezone.now().date()
-    # Only return events that are today or in the future, published, and not cancelled
     events = Event.objects.filter(
         date__gte=today, is_published=True, is_cancelled=False
     ).select_related('creator', 'place').order_by('date', 'start_time')
@@ -753,7 +779,6 @@ def create_event(request):
 def manage_event(request, event_id):
     try:
         creator_profile = request.user.userprofile.creatorprofile
-        # Make sure the event belongs to this creator
         event = Event.objects.get(id=event_id, creator=creator_profile)
     except Event.DoesNotExist:
         return Response({"error": "Event not found or not yours"}, status=404)
@@ -761,10 +786,8 @@ def manage_event(request, event_id):
         return Response({"error": "Not a creator"}, status=403)
 
     if request.method == "PATCH":
-        # Partial update — only update the fields that were sent
         serializer = EventSerializer(
-            event, data=request.data, partial=True,
-            context={"request": request}
+            event, data=request.data, partial=True, context={"request": request}
         )
         if serializer.is_valid():
             serializer.save()
@@ -776,7 +799,6 @@ def manage_event(request, event_id):
 
 
 # POST /api/events/<id>/book/ — book spots at an event (no login required)
-# Payment is done at the venue — this just reserves the spots.
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def book_event(request, event_id):
@@ -787,7 +809,6 @@ def book_event(request, event_id):
 
     if event.is_full:
         return Response({"error": "This event is fully booked"}, status=400)
-
     if not event.is_upcoming:
         return Response({"error": "This event has already passed"}, status=400)
 
@@ -805,7 +826,6 @@ def book_event(request, event_id):
     if spots > event.spots_left:
         return Response({"error": f"Only {event.spots_left} spot(s) available"}, status=400)
 
-    # Save the booking and update the spots count
     Booking.objects.create(event=event, name=name, email=email, phone=phone, spots=spots)
     event.spots_taken += spots
     event.save()

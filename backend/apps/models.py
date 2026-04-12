@@ -213,6 +213,9 @@ class Post(models.Model):
     photo = models.ImageField(upload_to='posts/')
     # Private posts are only visible to the user who created them
     is_public = models.BooleanField(default=True)
+    # Creator must approve this post before it shows on the public place page.
+    # New posts default to False (pending) until the creator approves them.
+    is_approved = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

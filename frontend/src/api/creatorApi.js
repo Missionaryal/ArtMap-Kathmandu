@@ -1,5 +1,5 @@
 // creatorApi.js
-// Functions for the creator dashboard — managing profiles, places, photos, and reviews.
+// Functions for the creator dashboard — managing profiles, places, photos, events and posts.
 // All endpoints here require the user to be logged in as an approved creator.
 
 import api from "./axiosConfig";
@@ -38,7 +38,6 @@ export const updatePlace = async (placeId, formData) => {
 };
 
 // POST /api/creator/places/<id>/photos/ — upload a new photo to a place's gallery
-// Uses FormData so the image file is sent as multipart/form-data
 export const uploadPlacePhoto = async (placeId, formData) => {
   const response = await api.post(
     `/creator/places/${placeId}/photos/`,
@@ -59,9 +58,25 @@ export const getCreatorReviews = async () => {
   return response.data;
 };
 
-// GET /api/creator/tagged-posts/ — get posts that users tagged at this creator's places
+// GET /api/creator/tagged-posts/ — get ALL posts tagged at this creator's place
+// Returns both pending (is_approved=false) and approved (is_approved=true) posts
+// so the creator can decide what to show publicly
 export const getCreatorTaggedPosts = async () => {
   const response = await api.get("/creator/tagged-posts/");
+  return response.data;
+};
+
+// POST /api/creator/tagged-posts/<id>/approve/ — approve a tagged post
+// Once approved, the post becomes visible on the public place detail page
+export const approveTaggedPost = async (postId) => {
+  const response = await api.post(`/creator/tagged-posts/${postId}/approve/`);
+  return response.data;
+};
+
+// DELETE /api/creator/tagged-posts/<id>/remove/ — permanently remove a tagged post
+// The post is deleted — it will no longer appear anywhere on the platform
+export const removeTaggedPost = async (postId) => {
+  const response = await api.delete(`/creator/tagged-posts/${postId}/remove/`);
   return response.data;
 };
 
