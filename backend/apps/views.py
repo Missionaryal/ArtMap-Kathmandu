@@ -64,8 +64,16 @@ class PlaceViewSet(viewsets.ModelViewSet):
                     ).prefetch_related('photos', 'posts', 'reviews')
                 except Exception:
                     return Place.objects.none()
+
         # Otherwise return all places with their related data loaded in one query
-        return Place.objects.all().prefetch_related('photos', 'posts', 'reviews')
+        queryset = Place.objects.all().prefetch_related('photos', 'posts', 'reviews')
+
+        # Filter by category if ?category=... is provided in the URL
+        category = self.request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(category=category)
+
+        return queryset
 
     def get_serializer_context(self):
         # Pass the request to the serializer so it can build absolute URLs for images
@@ -724,7 +732,7 @@ def get_upcoming_events(request):
     today = timezone.now().date()
     events = Event.objects.filter(
         date__gte=today, is_published=True, is_cancelled=False
-    ).select_related('creator', 'place').order_by('date', 'start_time')
+    ).select_related('creator', 'place').order_by('date','start_time')
     serializer = EventSerializer(events, many=True, context={"request": request})
     return Response(serializer.data)
 

@@ -23,6 +23,7 @@ urlpatterns = [
     # JWT token refresh — POST a refresh token, get back a new access token
     # Used automatically by the frontend when the access token expires
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    
 ]
 
 # In development, Django serves uploaded media files (images) directly.
