@@ -77,18 +77,6 @@ export default function SettingsSection() {
           ))}
         </div>
       </div>
-
-      {/* Danger Zone — deactivating hides the listing from all visitors */}
-      <div className="bg-white border border-red-200 rounded-lg p-6 shadow-sm">
-        <h3 className="font-semibold text-red-600 mb-2">Danger Zone</h3>
-        <p className="text-sm text-stone-600 mb-4">
-          Deactivating your listing will hide it from all users. You can
-          reactivate it anytime from your settings.
-        </p>
-        <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
-          Deactivate Listing
-        </button>
-      </div>
     </div>
   );
 }
